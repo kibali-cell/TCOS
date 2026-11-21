@@ -71,3 +71,24 @@ def test_prod_has_debug_off_and_secure_cookies():
 def test_prod_passes_django_deploy_check_with_no_errors():
     result = _run(["manage.py", "check", "--deploy", "--fail-level", "ERROR"], _prod_env())
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_argon2_is_the_preferred_password_hasher():
+    # The test suite swaps in a fast hasher, so inspect the real configuration.
+    from config.settings import base
+
+    assert base.PASSWORD_HASHERS[0].endswith("Argon2PasswordHasher")
+
+
+def test_custom_user_model_is_configured():
+    from django.conf import settings
+
+    assert settings.AUTH_USER_MODEL == "accounts.User"
+
+
+def test_session_cookie_is_http_only_and_lax():
+    from django.conf import settings
+
+    assert settings.SESSION_COOKIE_HTTPONLY is True
+    assert settings.SESSION_COOKIE_SAMESITE == "Lax"
+    assert settings.CSRF_COOKIE_HTTPONLY is False  # the SPA must read it to send the header

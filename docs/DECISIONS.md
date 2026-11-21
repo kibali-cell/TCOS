@@ -60,10 +60,61 @@ New slices: 8 device registry, 9 sync server, 10 offline client, 11 offline appr
 ### D-018 Document uploads are online-only in Phase One
 Offline file handling multiplies the encrypted-storage and quota problems. Offline submissions needing a document are completed online.
 
+## Hybrid decisions resolved (2026-11-20)
+
+The values are in `docs/HYBRID_ARCHITECTURE.md` section 14. Summary:
+
+### D-019 Offline policy decisions
+No `CHILD_SENSITIVE` data cached on devices (D-H1); 7-day offline lease (D-H2); approval decisions online-only for every request type (D-H3). All three are the owner's acceptance of the proposals.
+
+### D-020 Provisional TZS risk tiers (D-H4, builder's proposal)
+LOW up to TZS 200,000; MEDIUM 200,001 to 2,000,000; HIGH above 2,000,000; payroll, staff loans, bank or payee changes, asset disposal and write-offs, and donor refunds are always HIGH. These were chosen without knowing the home's real spending pattern. They are configuration, and **must be ratified by the Board or Executive Director** before Slice 11 is signed off.
+
+### D-021 Devices in use (D-H5, owner)
+Windows and Mac computers, Android phones and iPhones. iOS storage limits and the lack of background sync are documented in the hybrid design. Real-iPhone testing is required and has not been done.
+
+### D-022 Device management and lock policy (D-H6 to D-H8, builder's decision)
+Lock after 5 minutes of inactivity on devices holding offline data. Administrator registers devices; Administrator and Executive Director revoke; users may suspend their own devices. Changes from a revoked device are quarantined, reviewed by someone other than the device's user, and never auto-applied.
+
+### D-023 "Sign out other devices" is a Phase One feature (owner)
+Built in Slice 1 on the account page.
+
+## Slice 1
+
+### D-024 Lower-case CHECK constraints instead of `citext`
+Usernames and emails are normalised to lower case in code and the database enforces it with `CHECK (col = lower(col))` plus unique constraints. This avoids depending on a PostgreSQL extension and gives case-insensitive uniqueness that holds even if code is bypassed (tested).
+
+### D-025 `is_active` is derived, not stored
+`is_active` is a property of `status == ACTIVE`. One source of truth means an account can never be "ACTIVE" and "inactive" at once.
+
+### D-026 Lockout is derived from `login_attempt`
+5 failed attempts for a username within 15 minutes blocks that username; 30 failures per IP address blocks the address. Blocked attempts are recorded but **not counted**, so an attacker cannot keep someone locked out forever by hammering the form. The unknown-user and known-user responses are byte-identical, so the form does not reveal which usernames exist. A successful sign-in or an administrator reset (`lockout_reset_at`) clears the count. `X-Forwarded-For` is ignored unless `TCOS_TRUSTED_PROXY_COUNT` is set (production behind a proxy), otherwise the client could pick its own IP.
+
+### D-027 Session timeouts and server-side revocation
+Idle timeout 30 minutes, absolute timeout 12 hours, both enforced by the server. Sessions are database-backed and mirrored in `user_session`, so any session can be ended instantly and the old cookie then stops working (tested by replaying a stolen cookie). Changing the password ends all other sessions. This idle timeout is separate from the 5-minute offline lock in D-022.
+
+### D-028 A new sign-in always rotates the session key
+Found by a test: Django's `login()` keeps the same key when the same user signs in again while already signed in. Slice 1 always starts a fresh session, which also prevents session fixation.
+
+### D-029 `session_key` stored in plain text in `user_session`
+It is the same value already held in `django_session`, so storing it adds no exposure, and it is needed to end a session. It is never returned by the API. Slice 8 may revisit this when devices are linked.
+
+### D-030 First administrator is a superuser until Slice 2
+`create_initial_admin` sets `is_superuser` because the Administrator role does not exist yet. Slice 2 replaces this with the role and keeps `is_superuser` for emergency break-glass only. The command refuses to run once users exist unless `--force` is given, and has no default credentials.
+
+### D-031 Department and position links deferred
+`user.department_id` and `position_id` arrive in Slice 4 with their tables.
+
+### D-032 Docker per-slice updates
+Compose project name pinned to `tcos` so the database volume is never orphaned by renaming the folder. The frontend reinstalls packages only when `package-lock.json` changes (`npm install`, not `npm ci`, because `npm ci` cannot delete a Docker volume mount). **Not yet tested in Docker.**
+
+### D-033 Prettier style file
+`frontend/.prettierrc.json` records the existing code style (no semicolons, single quotes, 100 columns). Prettier is not a project dependency yet; the file only prevents accidental restyling by someone who runs it.
+
 ## Pending owner decisions
 
-Still open in `docs/SCHEMA.md` section 9: scope semantics for sensitive modules, approval hierarchy tables, single versus multi-step approvals, audit hash chain, requester-as-only-approver policy, default permission grants, session management, data protection review and hosting region (now firm, because the database is in the cloud).
+Still open in `docs/SCHEMA.md` section 9: scope semantics for sensitive modules (needed before Slice 2), approval hierarchy tables, single versus multi-step approvals, audit hash chain, requester-as-only-approver policy, default permission grants, data protection review and hosting region (firm, because the database is in the cloud).
 
-Hybrid decisions D-H1 to D-H8 in `docs/HYBRID_ARCHITECTURE.md` section 14, each with a proposed default: child-sensitive records on devices, offline lease length, offline decisions, TZS risk thresholds, inactivity lock time, device types in use, who manages devices, quarantine policy.
+Also: ratify the TZS tiers (D-020) before Slice 11, and confirm the builder's choices in D-022.
 
-Needed before: Slice 1 (session management), Slice 2 (scope semantics, default grants), Slice 3 (hash chain), Slice 5 (approval chains, requester policy), Slice 8 (D-H2, D-H6, D-H7, D-H8), Slice 10 (D-H1, D-H5), Slice 11 (D-H3, D-H4), and before deployment (hosting region, data protection review).
+Needed before: Slice 2 (scope semantics, default grants), Slice 3 (hash chain), Slice 5 (approval chains, requester policy), Slice 11 (TZS ratification), and before deployment (hosting region, data protection review).

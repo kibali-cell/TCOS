@@ -4,7 +4,7 @@ Institutional management system for **Tuleeni Orphans Home**, Shinga Village, Ur
 
 The system, repository, domain, hosting and credentials belong to Tuleeni Orphans Home as an institution.
 
-**Current state:** Phase One, Slice 0 (project foundation). There is no login, no user management and no institutional data yet. See `docs/STATUS.md` for exactly what exists.
+**Current state:** Phase One, Slice 1 (sign-in, sessions, application shell). You can sign in, sign out, change your password and sign out other devices. There is no role-based access, user management screen or institutional data yet. See `docs/STATUS.md` for exactly what exists.
 
 Read `CLAUDE.md` first: it is the standing brief and rule set for everyone working on this project.
 
@@ -27,9 +27,29 @@ Then open:
 - Frontend: http://localhost:5173
 - Health check: http://localhost:8000/api/v1/health/ (expect `{"status":"ok","database":"ok"}`)
 
-Ports are bound to `127.0.0.1` only. Stop with `docker compose down` (add `-v` only if you want to delete the database volume).
+Ports are bound to `127.0.0.1` only. Stop with `docker compose down`. **Never add `-v`** unless you intend to delete the whole database.
 
-> The Docker stack has been validated for syntax (`docker compose config`) but **has not yet been run end to end**. See `docs/TEST_REPORT.md`.
+### Create the first administrator (once)
+
+With the stack running, in a second terminal:
+
+```bash
+docker compose exec backend python manage.py create_initial_admin
+```
+
+It asks for a username, email, full name and password (12+ characters). There are no default credentials. Then sign in at http://localhost:5173.
+
+### Receiving a new slice
+
+Each slice is delivered as an update to the **same** project folder, not a new project:
+
+1. Stop the stack (`docker compose down`, without `-v`).
+2. Extract the new zip over your existing folder, replacing files. Keep your `.env`.
+3. `docker compose up --build`
+
+Your data lives in a Docker volume, outside the folder, and survives updates. Database migrations run automatically on start. Slice zips never contain `.env` or data.
+
+> Docker run status: the stack was started successfully on the owner's machine for Slice 0 (database ready, migrations applied, health check 200). The Slice 1 run in Docker has not been tested by me; see `docs/TEST_REPORT.md`.
 
 ## Quick start without Docker
 
@@ -51,7 +71,7 @@ npm run dev                               # terminal 2: http://localhost:5173
 
 ```bash
 make check          # ruff, oxlint, TypeScript, migration check, backend + frontend tests
-make test-e2e       # responsive browser tests at 360 / 768 / 1280 px
+make test-e2e       # browser tests at 360 / 768 / 1280 px
 ```
 
 `make check` needs `DATABASE_URL` pointing at a PostgreSQL where the user may create databases (pytest creates and drops its own `test_*` database).

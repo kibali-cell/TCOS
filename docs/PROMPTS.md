@@ -45,7 +45,7 @@ Backend (apps/accounts):
 3. Password policy (length, common-password and similarity validation), Argon2 or PBKDF2 hashing.
 4. Login attempt recording in the login_attempt table, lockout after repeated failures (configurable), generic error messages, rate limiting.
 5. A management command `create_initial_admin` that creates the first administrator interactively or from environment variables. No default or hard-coded credentials anywhere.
-6. Session management: idle and absolute timeouts, ability to see and end own sessions if practical (otherwise list as partial).
+6. Session management: idle (30 min) and absolute (12 h) timeouts. REQUIRED (owner decision): list my active sessions, end one other session, and "sign out all other devices"; changing the password ends all other sessions. A new sign-in always starts a fresh session key.
 
 Frontend:
 7. Login page, authenticated app shell (responsive sidebar on desktop, drawer on mobile), logout, protected routes, session-expiry handling.

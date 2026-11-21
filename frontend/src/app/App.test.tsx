@@ -4,37 +4,38 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { App } from './App'
+import { AuthProvider } from '../features/auth/AuthContext'
+import { ME, mockApi } from '../test/mockApi'
 import { MODULES } from './modules'
 
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </MemoryRouter>,
   )
 }
 
 describe('application shell', () => {
   beforeEach(() => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ status: 'ok', database: 'ok' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-      ),
-    )
+    mockApi({
+      'GET /auth/me/': ME,
+      'GET /health/': { body: { status: 'ok', database: 'ok' } },
+    })
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('lists the dashboard and all twelve modules in the navigation', () => {
+  it('lists the dashboard and all twelve modules in the navigation', async () => {
     renderAt('/')
 
-    const nav = screen.getByRole('navigation', { name: 'Main navigation' })
+    const nav = await screen.findByRole('navigation', {
+      name: 'Main navigation',
+    })
     const links = within(nav).getAllByRole('link')
 
     expect(MODULES).toHaveLength(12)
@@ -45,10 +46,10 @@ describe('application shell', () => {
     }
   })
 
-  it('shows no invented institutional figures on the dashboard', () => {
+  it('shows no invented institutional figures on the dashboard', async () => {
     renderAt('/')
 
-    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
     const text = document.body.textContent ?? ''
     for (const reference of ['85', '42', '43']) {
       expect(text).not.toContain(reference)
@@ -59,23 +60,25 @@ describe('application shell', () => {
     const user = userEvent.setup()
     renderAt('/')
 
-    await user.click(screen.getByRole('link', { name: 'Medical Management' }))
+    await user.click(await screen.findByRole('link', { name: 'Medical Management' }))
 
     expect(screen.getByRole('heading', { name: 'Medical Management' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Not yet available.')
   })
 
-  it('shows a not-found page for an unknown module', () => {
+  it('shows a not-found page for an unknown module', async () => {
     renderAt('/modules/does-not-exist')
 
-    expect(screen.getByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument()
   })
 
   it('opens and closes the navigation drawer with the menu button and Escape', async () => {
     const user = userEvent.setup()
     renderAt('/')
 
-    const button = screen.getByRole('button', { name: 'Open navigation' })
+    const button = await screen.findByRole('button', {
+      name: 'Open navigation',
+    })
     expect(button).toHaveAttribute('aria-expanded', 'false')
 
     await user.click(button)
@@ -94,7 +97,7 @@ describe('application shell', () => {
     const user = userEvent.setup()
     renderAt('/')
 
-    await user.click(screen.getByRole('button', { name: 'Open navigation' }))
+    await user.click(await screen.findByRole('button', { name: 'Open navigation' }))
     await user.click(screen.getByRole('link', { name: 'Donor Management' }))
 
     expect(document.getElementById('sidebar')).not.toHaveClass('open')

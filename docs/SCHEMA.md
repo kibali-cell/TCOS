@@ -100,7 +100,31 @@ id, user_id FK, code_hash, used_at (nullable), created_at.
 
 id, user_id FK, token_hash (unique), requested_ip, expires_at, used_at (nullable), created_at. Token itself is never stored, only its hash. Single use.
 
-Sessions: Django's session framework (database-backed) with an additional `user_session` view or table is optional; see open decision 9.9.
+Sessions: Django's database-backed session framework plus a `user_session` table (decided, see 9.9), so users can see and end their own sessions.
+
+#### As built in Slice 1 (differences from the design above)
+
+- `username` and `email` are `varchar`, normalised to lower case in code **and** enforced by `CHECK (col = lower(col))` plus unique constraints, instead of `citext` (no PostgreSQL extension needed). Email is optional-unique: `unique(email)`.
+- `is_active` is **not** a column. It is derived from `status = 'ACTIVE'`, so it cannot disagree with `status`.
+- `failed_login_count` and `locked_until` are **not** columns. Lockout is derived from `login_attempt` (5 failures in 15 minutes per username, 30 per IP). `lockout_reset_at` (timestamptz) lets an administrator clear a lockout; the screen for it arrives in Slice 6.
+- `department_id` and `position_id` are deferred to Slice 4, when those tables exist.
+- The first administrator created by `create_initial_admin` has `is_superuser = true` until Slice 2 provides the Administrator role.
+- `django.contrib.auth` is installed, so its `auth_group` and `auth_permission` tables exist but are **unused**. TCOS uses its own RBAC tables from Slice 2.
+- `login_attempt` records: username as typed (normalised, truncated), user if found, success, `failure_reason` (`BAD_CREDENTIALS`, `ACCOUNT_NOT_ACTIVE`, `THROTTLED`), IP, user agent, time.
+
+### `user_session` (Slice 1)
+
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid PK | exposed to the user, used to end one session |
+| user_id | FK user | |
+| session_key | text, unique | key of the matching Django session. Never sent to clients. Stored in plain text, which is the same exposure as the `django_session` table itself |
+| device_label | text | e.g. "Safari on iPhone", derived from the user agent |
+| ip_address, user_agent | | informational |
+| created_at, last_seen_at | timestamptz | `last_seen_at` is refreshed at most once a minute |
+| ended_at, ended_reason | | `LOGOUT`, `IDLE_TIMEOUT`, `ABSOLUTE_TIMEOUT`, `SIGNED_OUT_BY_USER`, `PASSWORD_CHANGED` |
+
+Slice 8 adds a nullable `device_id` link to the device registry (and replaces the planned `device_session` table with this one).
 
 ## 4. rbac
 
@@ -351,7 +375,7 @@ Indexes: (status), (assigned_user_id), (lease_expires_at).
 
 id, device_id FK, code_hash (the code itself is shown once and never stored), expires_at, used_at (nullable), created_by, created_at. Single use.
 
-### `device_session`
+### `device_session` (superseded: Slice 1 built `user_session`; Slice 8 adds `device_id` to it instead of creating this table)
 
 id, session_key_hash (unique), user_id FK, device_id FK (nullable for unregistered devices), created_at, ended_at (nullable), ended_reason (`LOGOUT`, `IDLE`, `REVOKED`, `PASSWORD_RESET`, `USER_DEACTIVATED`). Lets the server end every session on a revoked device immediately.
 
@@ -412,7 +436,7 @@ id, occurred_at, user_id, device_id, direction (`PULL`, `PUSH`), applied_count, 
 6. **Requester is the only possible approver** (e.g. Executive Director requesting something with no superior): escalate to Board Member role, or block and require an administrator to reassign? Needs a policy.
 7. **Default permission grants per role:** I will propose a matrix in Slice 2 for you to correct. Do you already have a view on who may approve what (e.g. spending limits)?
 8. ~~**Language**~~ **Decided: English only.** No translation framework is needed.
-9. **Session management:** is Django's standard database session enough, or do you want a visible "my active sessions / sign out other devices" feature in Phase One?
+9. ~~**Session management**~~ **Decided: yes.** Visible "where you are signed in" list, per-device sign out and "sign out all other devices". Idle timeout 30 minutes, absolute timeout 12 hours.
 10. **Data protection:** confirm that Tanzania's Personal Data Protection Act obligations (and any donor safeguarding rules) have been reviewed, since child modules in Phase Two will depend on the classification and encryption approach set here.
 11. **Hosting region:** hosting location affects data residency and latency from Shinga. Decide before deployment, not before Slice 0. With a cloud database this becomes a firm requirement, not a nice-to-have.
 12. **Hybrid and offline decisions D-H1 to D-H8** (child-sensitive caching, offline lease length, offline approvals, risk thresholds in TZS, inactivity lock time, device types, who manages devices, quarantine policy) are listed with proposed defaults in `docs/HYBRID_ARCHITECTURE.md` section 14.

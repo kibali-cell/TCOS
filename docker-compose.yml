@@ -6,6 +6,10 @@
 # This is the DEVELOPMENT stack. The production build (static React behind a
 # TLS-terminating web server) is not part of Slice 0. See docs/STATUS.md.
 
+# Pinned so that renaming or re-extracting the project folder keeps using the same
+# database volume (otherwise Compose would create a new, empty one).
+name: tcos
+
 services:
   db:
     image: postgres:16
@@ -52,6 +56,12 @@ services:
     build:
       context: ./frontend
     restart: unless-stopped
+    # node_modules lives in a named volume, so a slice that changes package-lock.json
+    # would otherwise keep the old packages. Reinstall only when the lock file changed.
+    command: >
+      sh -c "if ! cmp -s package-lock.json node_modules/.tcos-lock; then
+               npm install --no-audit --no-fund && cp package-lock.json node_modules/.tcos-lock;
+             fi && npm run dev"
     environment:
       BACKEND_URL: http://backend:8000
     volumes:

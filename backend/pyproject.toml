@@ -8,7 +8,7 @@ addopts = "-ra --strict-markers"
 [tool.ruff]
 line-length = 100
 target-version = "py313"
-extend-exclude = [".venv", "staticfiles"]
+extend-exclude = [".venv", "staticfiles", "apps/*/migrations"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "DJ"]

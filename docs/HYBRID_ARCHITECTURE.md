@@ -262,18 +262,30 @@ Additional tests:
 
 All results are recorded in `docs/TEST_REPORT.md`, including anything that could not be tested in the build environment (for example, real iPhone Safari behaviour, which needs physical device testing).
 
-## 14. Decisions needed from the owner
+## 14. Decisions
 
-| Id | Question | Proposed default |
+Resolved on 2026-11-20. Owner answers are marked **owner**; the rest were delegated to the builder ("decide what is best for the organisation") and are open to change at any review.
+
+| Id | Question | Decision |
 |---|---|---|
-| D-H1 | May records classified `CHILD_SENSITIVE` be cached on devices at all? | **No** by default. Later, allow only for named roles on registered, trusted devices |
-| D-H2 | Maximum offline period before an online login is required | 7 days |
-| D-H3 | Are approval decisions online-only for every request type, or may some low-risk types be decided offline? | Online-only for all |
-| D-H4 | What amounts (TZS) define low, medium and high risk? | Needs your figures |
-| D-H5 | Inactivity lock time | 5 minutes |
-| D-H6 | Which device types will staff actually use (computers, Android, iPhone, iPad)? | Affects testing and the Safari storage limits |
-| D-H7 | Who may register and revoke devices? | Administrator role only |
-| D-H8 | Quarantine policy: changes pushed by a revoked device | Quarantine for administrator review, never auto-apply |
+| D-H1 | May `CHILD_SENSITIVE` records be cached on devices? | **No** (owner accepted the proposal). Revisit only with an explicit decision |
+| D-H2 | Maximum offline period before online login is required | **7 days** (owner accepted) |
+| D-H3 | Approval decisions online-only? | **Online-only for every request type** (owner accepted) |
+| D-H4 | TZS risk thresholds | **Provisional**, chosen by the builder: LOW up to TZS 200,000; MEDIUM 200,001 to 2,000,000; HIGH above 2,000,000. Some categories are always HIGH regardless of amount: payroll and salary changes, staff loans or advances, changes to bank or payee details, asset disposal and write-offs, donor refunds. Stored as configuration, not code. **Needs ratification by the Board or Executive Director before Slice 11 is signed off** |
+| D-H5 | Devices in use | **Windows and Mac computers, Android phones, iPhones** (owner). See the iPhone note below |
+| D-H6 | Inactivity lock time | **5 minutes** on any device with offline data; online-only sessions use the 30 minute idle timeout from Slice 1 |
+| D-H7 | Who manages devices | **Administrator registers devices.** Administrator and Executive Director may revoke any device. Every user may suspend their own devices ("I lost my phone") from the account page; only an Administrator can re-enable |
+| D-H8 | Changes pushed by a revoked device | **Quarantined, never auto-applied.** Reviewed by a person other than the device's user (Administrator or Executive Director). Each quarantined change can be accepted (re-submitted as a new change by the reviewer), or discarded with a reason. Both outcomes are audited |
+
+Visible **"sign out other devices"**: yes (owner). Built in Slice 1 on the account page. Slice 8 adds per-device revocation on top of it.
+
+### iPhone and iPad
+
+Safari on iOS behaves differently from the other browsers and this matters for offline use:
+
+- Offline data in a normal Safari tab can be deleted by iOS after about seven days without use. Installing TCOS to the Home Screen ("Add to Home Screen") gives it more durable storage. Staff using iPhones should be taught to do this.
+- iOS has no background sync. An iPhone synchronises only while TCOS is open and online.
+- Offline behaviour on iOS must be tested on real devices. It cannot be fully verified in an emulator, and it has **not** been tested yet.
 
 ## 15. How this changes the build plan
 

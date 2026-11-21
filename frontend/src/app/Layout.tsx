@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet } from 'react-router-dom'
 
+import { useAuth, useCurrentUser } from '../features/auth/useAuth'
 import { MODULES } from './modules'
 
 export function Layout() {
   const [open, setOpen] = useState(false)
+  const user = useCurrentUser()
+  const { signOut } = useAuth()
 
   useEffect(() => {
     if (!open) return
@@ -57,6 +60,14 @@ export function Layout() {
             <span aria-hidden="true">☰</span>
           </button>
           <span className="topbar-title">Tuleeni Children Operating System</span>
+          <div className="topbar-user">
+            <Link to="/account" className="topbar-name">
+              {user.full_name}
+            </Link>
+            <button type="button" className="button" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </div>
         </header>
         <main className="content">
           <Outlet />

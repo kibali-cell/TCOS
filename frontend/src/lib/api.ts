@@ -27,6 +27,27 @@ export class ApiError extends Error {
   }
 }
 
+/** Called when the server says the session is gone (401), except for failed sign-in attempts. */
+let unauthorizedHandler: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler
+}
+
+const SIGN_IN_PATH = '/auth/login/'
+
+/** Field messages from a validation error, e.g. {"new_password": ["Too short."]}. */
+export function fieldErrors(error: unknown): Record<string, string[]> {
+  if (!(error instanceof ApiError) || typeof error.details !== 'object' || error.details === null) {
+    return {}
+  }
+  const result: Record<string, string[]> = {}
+  for (const [key, value] of Object.entries(error.details as Record<string, unknown>)) {
+    if (Array.isArray(value)) result[key] = value.map(String)
+  }
+  return result
+}
+
 export function getCookie(name: string): string | null {
   const prefix = `${name}=`
   for (const part of document.cookie.split(';')) {
@@ -90,6 +111,7 @@ export async function api<T = unknown>(path: string, options: RequestOptions = {
   }
 
   if (!response.ok) {
+    if (response.status === 401 && path !== SIGN_IN_PATH) unauthorizedHandler?.()
     const envelope = (payload as { error?: Record<string, unknown> } | null)?.error
     if (envelope && typeof envelope.code === 'string') {
       throw new ApiError(

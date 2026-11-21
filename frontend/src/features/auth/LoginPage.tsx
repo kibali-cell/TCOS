@@ -1,0 +1,95 @@
+import { useState, type FormEvent } from 'react'
+import { Navigate, useLocation } from 'react-router-dom'
+
+import { ApiError, fieldErrors } from '../../lib/api'
+import { useAuth } from './useAuth'
+
+export function LoginPage() {
+  const { state, signIn } = useAuth()
+  const location = useLocation()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  if (state.status === 'signed-in') {
+    const from = (location.state as { from?: string } | null)?.from
+    return <Navigate to={from && from !== '/login' ? from : '/'} replace />
+  }
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      await signIn(username.trim(), password)
+    } catch (caught) {
+      setPassword('')
+      if (caught instanceof ApiError && caught.code === 'validation_error') {
+        setError(Object.values(fieldErrors(caught))[0]?.[0] ?? 'Enter your username and password.')
+      } else if (caught instanceof ApiError && caught.status !== 0) {
+        setError(caught.message)
+      } else {
+        setError('Could not reach the server. Check your connection and try again.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <main className="login-page">
+      <div className="card login-card">
+        <p className="login-brand">TCOS</p>
+        <h1>Sign in</h1>
+        <p className="muted">Tuleeni Orphans Home</p>
+
+        {state.status === 'anonymous' && state.sessionEnded && (
+          <p className="notice" role="status">
+            Your session has ended. Please sign in again.
+          </p>
+        )}
+
+        <form onSubmit={onSubmit} noValidate>
+          <div className="field">
+            <label htmlFor="username">Username</label>
+            <input
+              id="username"
+              name="username"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              required
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </div>
+          {error && (
+            <p role="alert" className="form-error">
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            className="button primary"
+            disabled={busy || !username || !password}
+          >
+            {busy ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+      </div>
+    </main>
+  )
+}

@@ -8,7 +8,7 @@ Every error response has the same shape::
 """
 
 from rest_framework import status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import exception_handler as drf_exception_handler
 
@@ -37,6 +37,11 @@ def exception_handler(exc, context):
         return None
 
     code = _CODES_BY_STATUS.get(response.status_code, "error")
+    if isinstance(exc, APIException):
+        # Use the exception's own code (e.g. "invalid_credentials") when it has one.
+        exc_codes = exc.get_codes()
+        if isinstance(exc_codes, str):
+            code = exc_codes
     details = None
 
     if isinstance(exc, ValidationError):

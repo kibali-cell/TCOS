@@ -2,6 +2,7 @@ import logging
 
 from django.db import Error as DatabaseError
 from django.db import connection
+from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework.permissions import AllowAny
@@ -9,6 +10,25 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 logger = logging.getLogger(__name__)
+
+
+def csrf_failure(request, reason=""):
+    """JSON response when a CSRF check fails outside DRF's own handling.
+
+    The technical reason is deliberately not returned to the client.
+    """
+    return JsonResponse(
+        {
+            "error": {
+                "code": "csrf_failed",
+                "message": (
+                    "The security token is missing or invalid. Reload the page and try again."
+                ),
+                "details": None,
+            }
+        },
+        status=403,
+    )
 
 
 class HealthView(APIView):

@@ -4,6 +4,25 @@ import { expect, test } from '@playwright/test'
 const WIDE_BREAKPOINT = 900
 
 test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/auth/me/', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        user: {
+          id: '6f1ad6c0-5c1e-4b8a-9d57-3f2a2f0e6b11',
+          username: 'alice',
+          full_name: 'Alice Mwangi',
+          email: 'alice@example.org',
+          phone: '',
+          status: 'ACTIVE',
+          must_change_password: false,
+          last_login: null,
+        },
+        session: { idle_expires_at: null, absolute_expires_at: null },
+      }),
+    }),
+  )
   await page.route('**/api/v1/health/', (route) =>
     route.fulfill({
       status: 200,
