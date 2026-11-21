@@ -102,6 +102,13 @@ id, user_id FK, token_hash (unique), requested_ip, expires_at, used_at (nullable
 
 Sessions: Django's database-backed session framework plus a `user_session` table (decided, see 9.9), so users can see and end their own sessions.
 
+#### As built in Slice 2 (rbac, organisation)
+
+- `organisation.department` exists in minimal form (id, code, name, is_active, timestamps). `user.department_id` (primary department) is added. Slice 4 extends the table.
+- `permission` holds 120 seeded rows (15 modules x 8 actions). `role` has 11 seeded `is_system` roles. `role_permission` is seeded with the default grants (decision D-034).
+- `role_permission.scope` and `permission.action` have CHECK constraints; `record_grant.action` too.
+- `django.contrib.auth` groups and permissions are still installed but unused.
+
 #### As built in Slice 1 (differences from the design above)
 
 - `username` and `email` are `varchar`, normalised to lower case in code **and** enforced by `CHECK (col = lower(col))` plus unique constraints, instead of `citext` (no PostgreSQL extension needed). Email is optional-unique: `unique(email)`.
@@ -156,7 +163,7 @@ Seeded roles: Board Member, Executive Director, Administrator, Social Welfare Of
 
 Unique (role_id, permission_id). Permissions are assigned independently, one row each.
 
-Scope meanings: `ALL` every record in the module; `DEPARTMENT` records belonging to the user's department(s); `OWN` records the user created or is the subject of; `ASSIGNED` records explicitly assigned to the user (e.g. an approval waiting on them).
+Scope meanings: `ALL` every record in the module; `DEPARTMENT` records belonging to the user's department(s); `OWN` records the user created or is the subject of; `ASSIGNED` records explicitly assigned to the user (e.g. an approval waiting on them). **Scopes are cumulative** (decision D-035): ASSIGNED includes OWN; DEPARTMENT includes ASSIGNED and OWN; ALL includes everything.
 
 ### `user_role`
 
@@ -169,7 +176,7 @@ Scope meanings: `ALL` every record in the module; `DEPARTMENT` records belonging
 | valid_from / valid_to | date, nullable | temporary or acting roles |
 | granted_by / granted_at | | |
 
-Unique (user_id, role_id, department_id). A user may hold several roles; effective permission is the union, using the widest scope per (module, action).
+Unique (user_id, role_id, department_id) **among live assignments** (two partial unique indexes, because NULL department is its own case). A user may hold several roles; effective permission is the union, using the widest scope per (module, action). **As built:** adds `revoked_at` and `revoked_by`; removing a role keeps the row as history. A check constraint requires `valid_to >= valid_from`.
 
 ### `record_grant` (record-specific access)
 

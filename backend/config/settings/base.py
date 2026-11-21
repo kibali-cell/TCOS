@@ -142,7 +142,7 @@ TCOS_TRUSTED_PROXY_COUNT = env.int("TCOS_TRUSTED_PROXY_COUNT", default=0)
 REST_FRAMEWORK = {
     # Secure by default: every view denies access unless it explicitly declares
     # a permission class. Slice 2 replaces this with the central RBAC engine.
-    "DEFAULT_PERMISSION_CLASSES": ["apps.core.permissions.DenyByDefault"],
+    "DEFAULT_PERMISSION_CLASSES": ["apps.rbac.permissions.RBACPermission"],
     "DEFAULT_AUTHENTICATION_CLASSES": ["apps.accounts.authentication.TcosSessionAuthentication"],
     # JSON only: no browsable API in any environment.
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],

@@ -15,9 +15,13 @@ import sys
 
 from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
 from apps.accounts.models import User
 from apps.accounts.services import create_user
+from apps.rbac.constants import ADMINISTRATOR_ROLE
+from apps.rbac.models import Permission, Role, RolePermission, UserRole
+from apps.rbac.seed import seed
 
 
 class Command(BaseCommand):
@@ -45,18 +49,24 @@ class Command(BaseCommand):
         full_name = self._value(options["full_name"], "TCOS_ADMIN_FULL_NAME", "Full name: ")
         password = self._password()
 
+        seed(Permission, Role, RolePermission)  # make sure the Administrator role exists
         try:
-            user = create_user(
-                username=username,
-                email=email,
-                full_name=full_name,
-                password=password,
-                is_superuser=True,
-            )
+            with transaction.atomic():
+                user = create_user(
+                    username=username,
+                    email=email,
+                    full_name=full_name,
+                    password=password,
+                )
+                UserRole.objects.create(user=user, role=Role.objects.get(code=ADMINISTRATOR_ROLE))
         except ValidationError as exc:
             raise CommandError("Could not create the account: " + " ".join(exc.messages)) from exc
 
-        self.stdout.write(self.style.SUCCESS(f"Administrator '{user.username}' created."))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Administrator '{user.username}' created with the Administrator role."
+            )
+        )
 
     @staticmethod
     def _value(option, env_name, prompt):

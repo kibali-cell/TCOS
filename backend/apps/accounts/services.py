@@ -112,6 +112,7 @@ def create_user(
     status: str = User.Status.ACTIVE,
     is_superuser: bool = False,
     must_change_password: bool = False,
+    department=None,
     created_by: User | None = None,
 ) -> User:
     """Create an account, enforcing field validation and the password policy.
@@ -126,6 +127,7 @@ def create_user(
         status=status,
         is_superuser=is_superuser,
         must_change_password=must_change_password,
+        department=department,
         created_by=created_by,
     )
     user.full_clean(exclude=["password"])

@@ -99,11 +99,11 @@ Found by a test: Django's `login()` keeps the same key when the same user signs 
 ### D-029 `session_key` stored in plain text in `user_session`
 It is the same value already held in `django_session`, so storing it adds no exposure, and it is needed to end a session. It is never returned by the API. Slice 8 may revisit this when devices are linked.
 
-### D-030 First administrator is a superuser until Slice 2
-`create_initial_admin` sets `is_superuser` because the Administrator role does not exist yet. Slice 2 replaces this with the role and keeps `is_superuser` for emergency break-glass only. The command refuses to run once users exist unless `--force` is given, and has no default credentials.
+### D-030 First administrator: superuser flag replaced by the role (done in Slice 2)
+Slice 1 set `is_superuser` because no roles existed. From Slice 2 `create_initial_admin` assigns the **Administrator role** and no longer sets the flag. The flag is kept on the table but **grants nothing**; the engine ignores it. The Slice 2 migration gives the Administrator role to any existing superuser. The command still refuses to run once users exist unless `--force` is given, and has no default credentials.
 
-### D-031 Department and position links deferred
-`user.department_id` and `position_id` arrive in Slice 4 with their tables.
+### D-031 Department and position links (department pulled forward to Slice 2)
+Department-scoped access cannot be built or tested without a department, so Slice 2 adds a **minimal** `Department` (id, code, name, is_active) and `user.department` (primary department). Slice 4 adds hierarchy, heads, positions and staff assignments on top. `position_id` stays in Slice 4. No departments are seeded (no invented data); until Slice 4 they can only be created from the Django shell.
 
 ### D-032 Docker per-slice updates
 Compose project name pinned to `tcos` so the database volume is never orphaned by renaming the folder. The frontend reinstalls packages only when `package-lock.json` changes (`npm install`, not `npm ci`, because `npm ci` cannot delete a Docker volume mount). **Not yet tested in Docker.**
@@ -111,10 +111,67 @@ Compose project name pinned to `tcos` so the database volume is never orphaned b
 ### D-033 Prettier style file
 `frontend/.prettierrc.json` records the existing code style (no semicolons, single quotes, 100 columns). Prettier is not a project dependency yet; the file only prevents accidental restyling by someone who runs it.
 
+## Slice 2: roles, permissions and scoped access
+
+### D-034 Default grants per role (PLEASE REVIEW AND CORRECT)
+
+These are my proposal, not facts about how Tuleeni works. Every cell is editable on the **Roles and permissions** screen, and tests lock the defaults (`test_default_grants_match_the_reviewed_matrix`). Letters: **V** view, **C** create, **E** edit, **D** delete, **A** approve, **R** reject, **X** export, **M** manage users. Scope in brackets: *all*, *dept* (department), *own* (created by me), *assigned* (assigned to me).
+
+| Role | Default grants |
+|---|---|
+| Board Member | Institutional Administration: V (all); Financial Management: V (all); Project Management: V (all); Donor Management: V (all); Reports and Analytics: VX (all); Approval Centre: VAR (assigned); Approval Centre: C (own) |
+| Executive Director | Institutional Administration: VCE (all); Social Welfare Management: V (all); Child Profile Management: V (all); Education Management: V (all); Financial Management: VX (all); Project Management: V (all); Human Resources: V (all); Procurement: V (all); Stores and Inventory: V (all); Donor Management: V (all); Reports and Analytics: VX (all); Approval Centre: V (all); Approval Centre: AR (assigned); Approval Centre: C (own); Audit Log: V (all); Users, Roles and Permissions: V (all) |
+| Administrator | Institutional Administration: VCED (all); Approval Centre: V (all); Audit Log: V (all); Users, Roles and Permissions: VCEDM (all) |
+| Social Welfare Officer | Social Welfare Management: VCE (all); Child Profile Management: VCE (all); Approval Centre: VAR (assigned); Approval Centre: C (own) |
+| Education Officer | Child Profile Management: V (all); Education Management: VCE (all); Approval Centre: VAR (assigned); Approval Centre: C (own) |
+| Medical Officer | Child Profile Management: V (all); Medical Management: VCE (all); Approval Centre: VAR (assigned); Approval Centre: C (own) |
+| Finance Officer | Financial Management: VCEX (all); Procurement: V (all); Donor Management: V (all); Reports and Analytics: VX (all); Approval Centre: VAR (assigned); Approval Centre: C (own) |
+| Project Manager | Financial Management: V (dept); Project Management: VCE (all); Donor Management: V (all); Reports and Analytics: V (all); Approval Centre: VAR (assigned); Approval Centre: C (own) |
+| Storekeeper | Procurement: V (all); Stores and Inventory: VCE (all); Approval Centre: VC (own) |
+| Procurement Officer | Procurement: VCE (all); Stores and Inventory: V (all); Approval Centre: VAR (assigned); Approval Centre: C (own) |
+| HR Officer | Human Resources: VCEX (all); Approval Centre: VAR (assigned); Approval Centre: C (own); Users, Roles and Permissions: V (all) |
+
+Principles behind them:
+- **No blanket access.** The Administrator is broad only over system modules (users, administration, audit) and cannot see welfare, medical or financial records or approve anything.
+- **Medical records are read only by the Medical Officer.** Even the Executive Director has no medical access by default. Child profiles can be read by the roles that need them.
+- **Anyone may raise and see their own requests** (Approval Centre: create and view, own). Roles that head a function may decide requests *assigned* to them. Who is assigned is decided by the approval chain in Slice 5, and a person can never decide their own request.
+- **Finance Officer, not the Administrator, handles money.** Project Manager sees finance only for their own department.
+
+Questions for you: Should the Executive Director see medical records? Should the Administrator see the audit log (it can only view it)? Should the Board see child profiles or only reports? Who besides Finance may export?
+
+### D-035 Scopes are cumulative
+ALL covers everything; DEPARTMENT covers the user's department plus anything assigned to or created by them; ASSIGNED covers assigned plus own; OWN covers what the user created or is the subject of. A role has **one** scope per permission (the schema's unique row), so cumulative scopes let an approver have "assigned" and still see their own requests. A department-limited role assignment confines every grant of that role, even an ALL grant, to that department. Several roles combine by union.
+
+### D-036 Out-of-scope records answer 404, not 403
+A person who may not see a record cannot tell whether it exists. Listing and fetching are filtered by the same engine function, and a test checks that the filter and the single-record check agree for every scope.
+
+### D-037 No self-escalation, and lock-out guards
+Nobody can assign a role to themselves, change or remove their own assignments, or change the permissions, name, status or existence of a role they currently hold. The Administrator role must always keep "Manage Users on Users (All)", cannot be deactivated or deleted, and its last working holder cannot be removed. Built-in roles cannot be deleted; a role that was ever assigned cannot be deleted (deactivate it).
+
+**Known limit, not solved here:** two administrators acting together can still hand out powerful roles to each other's chosen people. Slice 3's audit log makes it visible. Whether granting sensitive roles should need a second person's approval through the Approval Centre (Slice 5) is for you to decide.
+
+### D-038 Role changes apply on the very next request
+Nothing about permissions is cached across requests. Access is computed once per request. Removing a role, expiring one or editing a matrix is effective immediately for everyone, including people already signed in (verified live: a signed-in user lost an action without signing in again).
+
+### D-039 Revoking keeps history
+Removing a role from a person sets `revoked_at` and keeps the row. Uniqueness applies only to live assignments, so a role can be granted again later.
+
+### D-040 `is_superuser` grants nothing
+No hidden super-powers. Access comes only from roles and record grants.
+
+### D-041 Seeding is safe to repeat
+Permissions, the 11 roles and their default grants are created by a data migration and by `manage.py seed_rbac`. Re-running creates only what is missing and never overwrites a role you have edited. Adding a module later means adding it to `apps/rbac/constants.py` and re-running the command.
+
+### D-042 A test fails if a view forgets its permissions
+`test_rbac_view_coverage` scans every URL. Each must be a DRF view that declares a permission policy; RBAC views must name their module; the only open views are the allow-listed ones (health, CSRF, sign-in). The default permission class is the central engine, which denies any view with no module.
+
+### D-043 Test-only models
+Department, own and assigned scope tests use a small test-only app (`tests/rbac_testapp`, `tests/settings_test.py`) because no real record types exist until Phase Two. It is never installed in the real settings.
+
 ## Pending owner decisions
 
-Still open in `docs/SCHEMA.md` section 9: scope semantics for sensitive modules (needed before Slice 2), approval hierarchy tables, single versus multi-step approvals, audit hash chain, requester-as-only-approver policy, default permission grants, data protection review and hosting region (firm, because the database is in the cloud).
+Still open in `docs/SCHEMA.md` section 9: approval hierarchy tables, single versus multi-step approvals, audit hash chain, requester-as-only-approver policy, data protection review and hosting region (firm, because the database is in the cloud). Scope semantics are now D-035; default grants are D-034 and need your review.
 
 Also: ratify the TZS tiers (D-020) before Slice 11, and confirm the builder's choices in D-022.
 
-Needed before: Slice 2 (scope semantics, default grants), Slice 3 (hash chain), Slice 5 (approval chains, requester policy), Slice 11 (TZS ratification), and before deployment (hosting region, data protection review).
+Needed before: Slice 3 (hash chain), Slice 5 (approval chains, requester policy), Slice 11 (TZS ratification), and before deployment (hosting region, data protection review).

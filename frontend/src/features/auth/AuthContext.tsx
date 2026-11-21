@@ -3,6 +3,16 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { ApiError, api, setUnauthorizedHandler } from '../../lib/api'
 import { AuthContext, type AuthPayload, type AuthState } from './useAuth'
 
+function signedIn(payload: AuthPayload): AuthState {
+  return {
+    status: 'signed-in',
+    user: payload.user,
+    session: payload.session,
+    permissions: payload.permissions ?? {},
+    roles: payload.roles ?? [],
+  }
+}
+
 /**
  * Holds who is signed in. The only source is the server (`/auth/me/`); nothing about
  * the user is kept in browser storage. A 401 from any request returns to the sign-in page.
@@ -13,11 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const payload = await api<AuthPayload>('/auth/me/')
-      setState({
-        status: 'signed-in',
-        user: payload.user,
-        session: payload.session,
-      })
+      setState(signedIn(payload))
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         setState({ status: 'anonymous', sessionEnded: false })
@@ -31,12 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     api<AuthPayload>('/auth/me/')
       .then((payload) => {
-        if (!cancelled)
-          setState({
-            status: 'signed-in',
-            user: payload.user,
-            session: payload.session,
-          })
+        if (!cancelled) setState(signedIn(payload))
       })
       .catch((error: unknown) => {
         if (cancelled) return
@@ -67,11 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body: { username, password },
     })
-    setState({
-      status: 'signed-in',
-      user: payload.user,
-      session: payload.session,
-    })
+    setState(signedIn(payload))
   }, [])
 
   const signOut = useCallback(async () => {

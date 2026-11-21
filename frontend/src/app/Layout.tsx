@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth, useCurrentUser } from '../features/auth/useAuth'
+import { useCan } from '../features/auth/usePermissions'
 import { MODULES } from './modules'
 
 export function Layout() {
   const [open, setOpen] = useState(false)
   const user = useCurrentUser()
   const { signOut } = useAuth()
+  const can = useCan()
+  const visibleModules = MODULES.filter((module) => can(module.permission, 'VIEW'))
 
   useEffect(() => {
     if (!open) return
@@ -34,13 +37,20 @@ export function Layout() {
                 Dashboard
               </NavLink>
             </li>
-            {MODULES.map((module) => (
+            {visibleModules.map((module) => (
               <li key={module.slug}>
                 <NavLink to={`/modules/${module.slug}`} onClick={close}>
                   {module.name}
                 </NavLink>
               </li>
             ))}
+            {can('users', 'VIEW') && (
+              <li>
+                <NavLink to="/administration/roles" onClick={close}>
+                  Roles and permissions
+                </NavLink>
+              </li>
+            )}
           </ul>
         </nav>
       </aside>

@@ -132,3 +132,76 @@ One step of my script (change password with a wrong current password) failed bec
 | Idle and absolute timeouts in real elapsed time | Tested by moving timestamps, not by waiting 30 minutes or 12 hours |
 | Production (gunicorn, HTTPS) sign-in, secure cookie in practice | Not repeated for Slice 1. Settings are asserted in tests only |
 | Audit events for sign-ins, permissions, user creation in the app | Slices 2, 3, 6 |
+
+
+---
+
+## Slice 2: roles, permissions, scoped access
+
+**Environment:** as Slice 1 (Linux, Python 3.13, Node 22, PostgreSQL 16 throwaway cluster, system Chrome). No Docker daemon.
+
+### Summary
+
+| Check | Command | Result |
+|---|---|---|
+| Whole pipeline | `make check` | Passed (exit 0) |
+| Backend lint, format | `ruff check .`, `ruff format --check .` | Passed |
+| Frontend lint, types | `npm run lint`, `npm run typecheck` | Passed |
+| Pending migrations | `makemigrations --check --dry-run` | No changes detected |
+| Migrate existing database (Slice 1 data) | `manage.py migrate` | Passed; existing superuser received the Administrator role |
+| Seed is repeatable | `manage.py seed_rbac` run again | Created 0 of everything |
+| Backend tests | `pytest` | **252 passed** (was 90) |
+| Frontend unit tests | `npm test` | **54 passed**, 6 files (was 35) |
+| Browser tests | `npx playwright test` | **21 passed** (was 12) |
+| Production build | `npm run build` | Succeeded |
+
+### Backend tests by area (162 new)
+
+| File | Tests | Covers |
+|---|---|---|
+| `test_rbac_engine.py` | 45 | Every scope (ALL, DEPARTMENT, OWN, ASSIGNED) per action; no leakage between modules; users with no roles; anonymous and inactive accounts denied; record grants (one record, one action, one user, expiry, revocation); **union of several roles**; widest scope wins; narrow scopes combine; department-restricted role plus unrestricted role; same role in two departments; role valid dates (both boundary days); revoking or deactivating one role leaves the others; a changed role applies on the next check; `can()` and the list filter agree on every record across 16 scope combinations |
+| `test_rbac_seed.py` | 23 | 120 permissions; 11 protected roles; the default matrix for each of the 11 roles; no blanket access; only the Administrator manages users; only the Medical Officer reads medical records; approval needs the assigned scope; seed idempotent and never overwrites edits; migration gives superusers the role; `is_superuser` grants nothing; first-admin command assigns the role |
+| `test_rbac_roles_api.py` | 45 | **Each of the 11 roles**: `/auth/me/` reports exactly its permissions; role screens allowed or refused correctly; finance endpoints follow finance permissions; forbidden responses reveal nothing; **a user without access who calls the API directly is refused** (the interface hiding something is not security); anonymous gets 401; forced password change blocks module access; catalogue and role list |
+| `test_rbac_management.py` | 27 | Create, rename, delete roles; duplicate names (case-insensitive); built-in roles undeletable; used roles undeletable; matrix replace validates every row and is atomic; **changing a role changes API behaviour immediately** (acceptance criterion); assignments with department and dates; two roles through the API; **nobody can give themselves a role, edit a role they hold, or remove their own roles**; users without Manage Users can change nothing; Administrator role must keep Manage Users; last working Administrator cannot be removed; an expired Administrator does not count |
+| `test_rbac_scopes_api.py` | 15 | Through real HTTP: Department A user cannot see Department B records and vice versa; out-of-scope records are 404 not 403; in-department edit and delete; cannot move a record to another department by editing; create limited to own department; user with no department sees nothing; own and assigned scope; the client cannot choose who owns a record; expired role stops mid-session; removing one of two roles leaves the other; record grant opens one record, revocation closes it at once |
+| `test_rbac_view_coverage.py` | 7 | Every URL is a DRF view; every view declares its permission policy; RBAC views name their module; the only unauthenticated views are health, CSRF and sign-in; the default permission class is the engine; the guard itself catches a forgotten policy |
+
+### Frontend tests (19 new)
+
+Navigation shows only modules the person may view; roles screen hidden without `users.VIEW`; a person with no roles sees only the dashboard; typing a forbidden module or the roles address shows a refusal and loads nothing; account page lists the person's roles; roles list with holder counts; matrix cells at the right scope; saves exactly the changed cells; removing access sends a smaller matrix; discard; server reason shown when a save is refused; warns before discarding unsaved changes; create role; built-in roles cannot be deleted from the screen and the Administrator cannot be deactivated; delete a custom role after confirmation; deactivation explains the effect; read-only for someone who may view but not manage; load error.
+
+**Browser (9 new, 3 tests x 3 widths):** roles screen shows the whole matrix without sideways scrolling at 360, 768 and 1280 px; navigation shows only permitted modules; a forbidden module address shows a refusal.
+
+### Live check with real processes (no mocks)
+
+Django dev server, real PostgreSQL, real default roles and cookies:
+
+| Step | Result |
+|---|---|
+| Welfare officer `/me` | Social welfare and child profiles: view, create, edit |
+| Welfare officer and Medical officer list roles | **403** (no `users.VIEW`) |
+| Administrator lists roles | 200, 11 roles with holder counts |
+| Administrator removes "edit child profiles" from the Social Welfare role | 200 |
+| Welfare officer `/me` again, **no new sign-in** | child profiles: view, create only (edit gone) |
+| Administrator edits his own Administrator role | **403** `self_escalation` |
+| Welfare officer tries to edit a role | **403** |
+| Anonymous lists roles | 401 |
+| Server log | No password, no traceback |
+
+One step (administrator assigns a role to himself) returned 404 because my script failed to look up the user id, so it did not test the rule. That rule is covered by `test_nobody_can_give_themselves_a_role`.
+
+### Problems found and fixed during the slice
+
+1. The first seed attempt failed: I had given approver roles both "own" and "assigned" for the same permission, which the schema's one-scope-per-permission rule rejects. Fixed by making scopes cumulative (D-035) and keeping the widest scope per permission.
+2. Lint: two models lacked `__str__`; one over-long line. Fixed.
+
+### Not run, and why
+
+| Item | Reason |
+|---|---|
+| Docker with Slice 2 | No Docker daemon here. The new migration and seed run on start; please try the update steps |
+| Real iPhone, Android, Mac, Edge | Only Chrome on Linux |
+| Assigning roles from a screen | Not built: needs the user list (Slice 6). API tested |
+| Department creation from a screen | Slice 4. Department scope tested through a test-only model |
+| Audit events for role and permission changes | Slice 3 |
+| Whether the default grants fit Tuleeni | Needs the owner's review (D-034) |

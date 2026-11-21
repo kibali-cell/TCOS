@@ -30,7 +30,7 @@ describe('application shell', () => {
     vi.unstubAllGlobals()
   })
 
-  it('lists the dashboard and all twelve modules in the navigation', async () => {
+  it('lists the dashboard, all twelve modules and the roles screen for someone with full access', async () => {
     renderAt('/')
 
     const nav = await screen.findByRole('navigation', {
@@ -39,7 +39,7 @@ describe('application shell', () => {
     const links = within(nav).getAllByRole('link')
 
     expect(MODULES).toHaveLength(12)
-    expect(links).toHaveLength(13)
+    expect(links).toHaveLength(14) // dashboard, twelve modules, roles and permissions
     expect(within(nav).getByRole('link', { name: 'Dashboard' })).toBeInTheDocument()
     for (const module of MODULES) {
       expect(within(nav).getByRole('link', { name: module.name })).toBeInTheDocument()

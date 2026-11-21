@@ -4,7 +4,7 @@ Institutional management system for **Tuleeni Orphans Home**, Shinga Village, Ur
 
 The system, repository, domain, hosting and credentials belong to Tuleeni Orphans Home as an institution.
 
-**Current state:** Phase One, Slice 1 (sign-in, sessions, application shell). You can sign in, sign out, change your password and sign out other devices. There is no role-based access, user management screen or institutional data yet. See `docs/STATUS.md` for exactly what exists.
+**Current state:** Phase One, Slice 2 (roles and permissions). You can sign in, manage devices and edit what each role may do on **Administration > Roles and permissions**. Navigation follows each person's permissions. There is no user management screen or institutional data yet. See `docs/STATUS.md` for exactly what exists.
 
 Read `CLAUDE.md` first: it is the standing brief and rule set for everyone working on this project.
 
@@ -37,7 +37,9 @@ With the stack running, in a second terminal:
 docker compose exec backend python manage.py create_initial_admin
 ```
 
-It asks for a username, email, full name and password (12+ characters). There are no default credentials. Then sign in at http://localhost:5173.
+It asks for a username, email, full name and password (12+ characters). There are no default credentials. The new account receives the Administrator role. Then sign in at http://localhost:5173.
+
+The 11 default roles are created automatically when the database is migrated. To re-run the seed after a future slice adds modules: `docker compose exec backend python manage.py seed_rbac` (it never overwrites roles you have edited).
 
 ### Receiving a new slice
 

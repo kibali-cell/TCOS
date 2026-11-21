@@ -64,6 +64,15 @@ class User(AbstractBaseUser):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Primary department. DEPARTMENT-scoped permissions apply to this department unless the
+    # role assignment names another. Slice 4 keeps it in step with staff assignments.
+    department = models.ForeignKey(
+        "organisation.Department",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
+    )
     created_by = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )

@@ -2,7 +2,7 @@
 
 Honest completion status. Categories: **Done and tested**, **Done but untested**, **Partial**, **Not done**.
 
-Last updated: Slice 1 built and tested (awaiting review). Hybrid and offline design is documents only.
+Last updated: Slice 2 built and tested (awaiting review). Hybrid and offline design is documents only.
 
 ## Slice 0: Project foundation
 
@@ -48,9 +48,31 @@ Last updated: Slice 1 built and tested (awaiting review). Hybrid and offline des
 | Password reset, two-factor authentication | Not done (Slice 7) | An administrator-set password is the only recovery route until then |
 | Users cannot yet be created in the application | Not done (Slice 6) | Only the command line can create the first administrator |
 
+## Slice 2: Roles, permissions, scoped access
+
+| Item | Status | Notes |
+|---|---|---|
+| Models: permission, role, role permission (with scope), user role (department, dates, revoke), record grant | Done and tested | Constraints in the database: unique rows, valid actions and scopes, date ranges, one live assignment per role and department |
+| Seed: 120 permissions, 11 roles, default grants | Done and tested | Data migration plus `manage.py seed_rbac`; idempotent; never overwrites edits |
+| Central engine `can()`, queryset filter, DRF permission class | Done and tested | Scopes ALL / DEPARTMENT / OWN / ASSIGNED, cumulative; record grants; union of roles; dates; revoked and inactive roles |
+| Every view must declare its policy | Done and tested | A test scans all URLs and fails on a forgotten policy; default class denies a view with no module |
+| APIs: catalogue, roles CRUD, matrix replace, assign and revoke roles, department list | Done and tested | Reading needs users.VIEW; changes need users.MANAGE_USERS |
+| Protections: no self-escalation, Administrator lock-out guards, built-in roles undeletable | Done and tested | See D-037 |
+| `/auth/me/` returns permissions and roles | Done and tested | |
+| Navigation and routes filtered by permission | Done and tested | The server remains the authority; direct API calls are tested |
+| Roles and permissions screen (matrix, scope selector, create/edit/delete/deactivate) | Done and tested | Read-only for people who may view but not manage users |
+| Changing a role's permission changes API behaviour at once | Done and tested | Acceptance criterion; also checked live against a running server |
+| **Assigning roles to people from a screen** | **Not done** | The API and its tests exist. The screen needs the user list, which is Slice 6. Until then roles can be assigned through the API or the Django shell |
+| **Creating departments** | **Not done** | Slice 4. Department scope is tested with a test-only model |
+| Default grants reflect how Tuleeni really works | **Needs your review** | They are my proposal (D-034) |
+| Record grants from a screen | Not done | Engine and model are tested; no API or screen yet because no record types exist until Phase Two |
+| Audit events for role and permission changes | Not done (Slice 3) | Changes are visible in the tables (`granted_by`, `revoked_by`) but not yet in an audit log |
+| Real devices (iPhone, Android, Mac, Edge) | Not tested | Chrome on Linux only |
+| Docker with Slice 2 | Not tested | No Docker here. The migration runs on start; please try the update steps |
+
 ## Known limitations
 
-- Roles, permissions, audit, approvals and user management do not exist yet. Any signed-in user sees the same screens.
+- Audit, approvals and user management do not exist yet. Roles and permissions exist, but no real record types exist yet, so the permissions currently decide only what you see in the navigation and who may manage roles.
 - Sessions: an idle session expires on the server after 30 minutes but the page only notices on its next request.
 - No institutional figures (85 / 42 / 43 / 15 or otherwise) are shown anywhere. The reference-figure mechanism arrives in Slice 6.
 - Unknown API URLs return Django's default HTML 404 rather than the JSON error envelope.
@@ -61,7 +83,8 @@ Last updated: Slice 1 built and tested (awaiting review). Hybrid and offline des
 | Slice | Status |
 |---|---|
 | 0 Project setup | Done and reviewed (Docker run confirmed by owner) |
-| 1 Custom user, authentication, shell | **Done, awaiting review** |
+| 1 Custom user, authentication, shell | Done and reviewed |
+| 2 Roles, permissions, scoped access | **Done, awaiting review** |
 | 2 Roles, permissions, scoped access | Not started |
 | 3 Audit log | Not started |
 | 4 Organisation structure | Not started |

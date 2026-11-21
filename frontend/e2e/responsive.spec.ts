@@ -20,6 +20,23 @@ test.beforeEach(async ({ page }) => {
           last_login: null,
         },
         session: { idle_expires_at: null, absolute_expires_at: null },
+        permissions: Object.fromEntries(
+          [
+            'administration',
+            'social_welfare',
+            'children',
+            'education',
+            'medical',
+            'finance',
+            'projects',
+            'hr',
+            'procurement',
+            'stores',
+            'donors',
+            'reports',
+          ].map((code) => [code, { VIEW: 'ALL' }]),
+        ),
+        roles: [],
       }),
     }),
   )

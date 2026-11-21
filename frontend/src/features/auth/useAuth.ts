@@ -16,16 +16,33 @@ export interface SessionInfo {
   absolute_expires_at: string | null
 }
 
+/** {module: {ACTION: widest scope}}. For showing and hiding only; the server decides. */
+export type Permissions = Record<string, Record<string, string>>
+
+export interface RoleSummary {
+  code: string
+  name: string
+  department: string | null
+}
+
 export interface AuthPayload {
   user: User
   session: SessionInfo
+  permissions: Permissions
+  roles: RoleSummary[]
 }
 
 export type AuthState =
   | { status: 'loading' }
   | { status: 'anonymous'; sessionEnded: boolean }
   | { status: 'unreachable' }
-  | { status: 'signed-in'; user: User; session: SessionInfo }
+  | {
+      status: 'signed-in'
+      user: User
+      session: SessionInfo
+      permissions: Permissions
+      roles: RoleSummary[]
+    }
 
 export interface AuthContextValue {
   state: AuthState

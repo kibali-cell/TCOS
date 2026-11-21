@@ -29,7 +29,36 @@ export const SESSION = {
   absolute_expires_at: '2026-11-20T15:00:00Z',
 }
 
-export const ME = { status: 200, body: { user: USER, session: SESSION } }
+const MODULE_CODES = [
+  'administration',
+  'social_welfare',
+  'children',
+  'education',
+  'medical',
+  'finance',
+  'projects',
+  'hr',
+  'procurement',
+  'stores',
+  'donors',
+  'reports',
+]
+
+/** Everything visible and manageable, so tests that are not about permissions see every screen. */
+export const FULL_ACCESS = {
+  ...Object.fromEntries(MODULE_CODES.map((code) => [code, { VIEW: 'ALL' }])),
+  users: { VIEW: 'ALL', MANAGE_USERS: 'ALL' },
+}
+
+export function meAs(permissions: Record<string, Record<string, string>>, roles = ROLES) {
+  return { status: 200, body: { user: USER, session: SESSION, permissions, roles } }
+}
+
+export const ROLES: { code: string; name: string; department: string | null }[] = [
+  { code: 'ADMINISTRATOR', name: 'Administrator', department: null },
+]
+
+export const ME = meAs(FULL_ACCESS)
 export const NOT_SIGNED_IN = {
   status: 401,
   body: {

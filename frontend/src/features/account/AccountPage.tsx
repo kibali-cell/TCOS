@@ -10,6 +10,7 @@ export function AccountPage() {
   const { state, refresh } = useAuth()
   const [reloadKey, setReloadKey] = useState(0)
   const session = state.status === 'signed-in' ? state.session : null
+  const roles = state.status === 'signed-in' ? state.roles : []
 
   return (
     <>
@@ -30,6 +31,16 @@ export function AccountPage() {
               <dd>{user.phone}</dd>
             </>
           )}
+          <dt>Roles</dt>
+          <dd>
+            {roles.length === 0
+              ? 'None yet. Ask an administrator.'
+              : roles
+                  .map((role) =>
+                    role.department ? `${role.name} (${role.department})` : role.name,
+                  )
+                  .join(', ')}
+          </dd>
           <dt>Last sign-in</dt>
           <dd>{formatDateTime(user.last_login)}</dd>
           <dt>Session ends no later than</dt>

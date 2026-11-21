@@ -57,6 +57,16 @@ def delete(client, url, **extra):
     return client.delete(url, HTTP_X_CSRFTOKEN=csrf_token(client), **extra)
 
 
+def put(client, url, data=None, **extra):
+    return client.put(url, data or {}, format="json", HTTP_X_CSRFTOKEN=csrf_token(client), **extra)
+
+
+def patch(client, url, data=None, **extra):
+    return client.patch(
+        url, data or {}, format="json", HTTP_X_CSRFTOKEN=csrf_token(client), **extra
+    )
+
+
 def sign_in(client, username, password=PASSWORD, **extra):
     return post(
         client, "/api/v1/auth/login/", {"username": username, "password": password}, **extra
@@ -75,3 +85,41 @@ def signed_in(new_client, make_user):
         return user, client
 
     return _signed_in
+
+
+# --- RBAC helpers --------------------------------------------------------------------
+
+
+@pytest.fixture
+def departments(db):
+    from apps.organisation.models import Department
+
+    return {
+        "A": Department.objects.create(code="DEPT-A", name="Department A"),
+        "B": Department.objects.create(code="DEPT-B", name="Department B"),
+    }
+
+
+def give_role(user, code, department=None, **extra):
+    """Assign a seeded role directly (bypasses the API on purpose: test setup only)."""
+    from apps.rbac.models import Role, UserRole
+
+    return UserRole.objects.create(
+        user=user, role=Role.objects.get(code=code), department=department, **extra
+    )
+
+
+@pytest.fixture
+def staff(new_client, make_user):
+    """A signed-in user holding the given seeded role(s): staff("FINANCE_OFFICER", ...)."""
+
+    def _staff(*codes, department=None, username=None, role_department=None, **user_kwargs):
+        user = make_user(username, department=department, **user_kwargs)
+        for code in codes:
+            give_role(user, code, department=role_department)
+        client = new_client()
+        response = sign_in(client, user.username)
+        assert response.status_code == 200, response.content
+        return user, client
+
+    return _staff

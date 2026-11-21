@@ -118,7 +118,8 @@ def test_create_initial_admin_from_environment(db, admin_env):
     call_command("create_initial_admin", stdout=out)
 
     user = User.objects.get(username="first.admin")
-    assert user.is_superuser and user.is_active
+    assert user.is_active and not user.is_superuser  # access comes from the role (Slice 2)
+    assert user.user_roles.get().role.code == "ADMINISTRATOR"
     assert user.check_password(PASSWORD)
     assert PASSWORD not in out.getvalue()  # the password is never printed
 

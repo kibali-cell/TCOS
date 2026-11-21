@@ -9,6 +9,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.rbac.models import UserRole
+from apps.rbac.permissions import effective_permissions, permissions_payload
+
 from . import services
 from .models import UserSession
 from .permissions import IsSignedIn
@@ -35,10 +38,30 @@ def _session_info(request) -> dict:
     }
 
 
+def _roles_payload(user) -> list[dict]:
+    rows = (
+        UserRole.objects.filter(user=user, revoked_at__isnull=True, role__is_active=True)
+        .select_related("role", "department")
+        .order_by("role__name")
+    )
+    return [
+        {
+            "code": r.role.code,
+            "name": r.role.name,
+            "department": r.department.name if r.department_id else None,
+        }
+        for r in rows
+    ]
+
+
 def _auth_payload(request) -> dict:
+    user = request.user
     return {
-        "user": UserProfileSerializer(request.user).data,
+        "user": UserProfileSerializer(user).data,
         "session": _session_info(request),
+        # The frontend uses these to decide what to show. The server still checks every call.
+        "permissions": permissions_payload(effective_permissions(user)),
+        "roles": _roles_payload(user),
     }
 
 
