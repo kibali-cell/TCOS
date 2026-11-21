@@ -1,0 +1,40 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+
+# Uploaded and private files (never commit institutional data)
+private_media/
+media/
+uploads/
+
+# Database dumps and backups
+*.sql
+*.dump
+backups/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+*.log
