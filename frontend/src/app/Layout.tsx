@@ -72,6 +72,13 @@ export function Layout() {
             )}
             {can('users', 'VIEW') && (
               <li>
+                <NavLink to="/administration/users" onClick={close}>
+                  Users
+                </NavLink>
+              </li>
+            )}
+            {can('users', 'VIEW') && (
+              <li>
                 <NavLink to="/administration/roles" onClick={close}>
                   Roles and permissions
                 </NavLink>

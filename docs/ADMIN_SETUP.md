@@ -62,6 +62,16 @@ You can re-create any missing starting departments with `docker compose exec bac
 - **Access review:** Administration, Access review. Check it regularly. Set `TCOS_HOSTING_REGION` once the hosting region is decided.
 - **Also see** `docs/DATA_SOVEREIGNTY.md`.
 
-## 7. Not covered yet
+## 7. Users and dashboards (Slice 6)
+
+- **Users:** Administration, Users. Create a person, then give them a role (sensitive roles through the Approval Centre) and a main post in Organisation, which sets their department.
+- **First sign-in:** the new person gets a temporary password from the screen, shown once. Pass it on privately (in person or a call, not a group chat). They must change it at first sign-in.
+- **Someone leaves:** deactivate the account; their sessions end at once. Accounts are never deleted, so history stays correct.
+- **Locked out:** open the person and press "Clear sign-in lockout".
+- **Forgotten password of someone with a sensitive role** (Administrator, Executive Director, Board Member, Finance Officer and so on): not possible from the screen, by design (D-072). Ask the server operator until reset by e-mail arrives.
+- **Dashboard numbers:** figures marked "Reference figure (not yet verified)" are the starting figures from the institution (85 children, 42 residential, 43 outreach, 15 employees), not counted from records. Employees become a live count once staff posts are entered.
+- **Printing:** use the Print button on the users list, the dashboard and the department dashboard.
+
+## 8. Not covered yet
 
 User management screens, password reset, two-factor sign-in, device registration and backup procedures arrive in later slices and will be added here.

@@ -2,6 +2,10 @@ import { Route, Routes } from 'react-router-dom'
 
 import { AccountPage } from '../features/account/AccountPage'
 import { OrganisationPage } from '../features/organisation/OrganisationPage'
+import { DashboardPage } from '../features/dashboard/DashboardPage'
+import { DepartmentDashboardPage } from '../features/dashboard/DepartmentDashboardPage'
+import { UserDetailPage } from '../features/users/UserDetailPage'
+import { UsersPage } from '../features/users/UsersPage'
 import { AccessReviewPage } from '../features/approvals/AccessReviewPage'
 import { ApprovalsPage } from '../features/approvals/ApprovalsPage'
 import { LimitsPage } from '../features/approvals/LimitsPage'
@@ -14,7 +18,7 @@ import { RequireAuth } from '../features/auth/RequireAuth'
 import { RequirePermission } from '../features/auth/RequirePermission'
 import { RolesPage } from '../features/roles/RolesPage'
 import { Layout } from './Layout'
-import { DashboardPage, ModulePlaceholderPage, NotFoundPage } from './pages'
+import { ModulePlaceholderPage, NotFoundPage } from './pages'
 
 export function App() {
   return (
@@ -24,8 +28,11 @@ export function App() {
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />
           <Route path="account" element={<AccountPage />} />
+          <Route path="departments/:id/dashboard" element={<DepartmentDashboardPage />} />
           <Route element={<RequirePermission module="users" action="VIEW" />}>
             <Route path="administration/roles" element={<RolesPage />} />
+            <Route path="administration/users" element={<UsersPage />} />
+            <Route path="administration/users/:id" element={<UserDetailPage />} />
           </Route>
           <Route element={<RequirePermission module="administration" action="VIEW" />}>
             <Route path="administration/organisation" element={<OrganisationPage />} />

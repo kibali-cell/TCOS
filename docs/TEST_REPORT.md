@@ -389,3 +389,41 @@ Fresh database, migrated, `setup_database_roles` run, then connected as `tcos_ap
 | Real devices and browsers other than Chrome on Linux | Not available |
 | Multi-user load, and e-mail | No such feature / not configured |
 | The approvals flow in a real browser against the real server | Browser tests use mocked API responses; the real server was exercised by backend API tests only |
+
+
+## Slice 6: User management and dashboards
+
+**Environment:** as Slice 5.
+
+| Check | Command | Result |
+|---|---|---|
+| Whole pipeline | `make check` | Passed (exit 0) |
+| Backend tests | `pytest --create-db` | 621 passed (26 new) |
+| Frontend unit tests | `npx vitest run` | 105 passed (7 new) |
+| Browser tests | `npx playwright test` | 51 passed (6 new: 4 screens at 360, 768, 1280 px, and print layout) |
+| Pending migrations | `makemigrations --check --dry-run` | None |
+| Empty-database migrate, reverse `core` to zero, apply again | `manage.py migrate` | Passed |
+
+### What the tests cover
+
+Users: viewing versus managing permissions, anonymous refusal, list columns, search, status filter, role filter, sort and paging; create with a one-time password (works once, forces change, never appears in the audit log or later reads); duplicates and bad input refused; edit changes only profile fields; deactivation ends sessions and is reversible; yourself and the last Administrator protected; lockout cleared; temporary password refused for yourself and for holders of Executive Director or Finance Officer roles; department-limited viewer sees only their department and gets 404 for others; no delete.
+Dashboard: reference figures seeded unverified; labels for reference, verified and live; employees switch to live count and keep the old figure; no invented project numbers; finance absent for people without all-scope finance view (including a department-limited one); different roles see different figures; approvals counted from real requests; activity only for audit viewers and without change details or IP addresses; notifications are your own; department dashboard content and access (own department, all-access director, other department 404, unknown id 404).
+
+### Live check against PostgreSQL as the restricted role
+
+On a fresh database, with the server role `tcos_app`: an Executive Director record was created, a user was created through the service with a temporary password, the dashboard was built (85, 42, 43, 15 as reference figures, projects as none) and the audit chain still verified.
+
+### Problems found during the slice
+
+- The sidebar test counted navigation links; a Users link was added, so the expected count went from 15 to 16 (intended).
+- A test used a 2-letter username that the username rules rightly refuse; fixed the test.
+- An older Organisation browser test matched the text "Child" in two places (the department and the page title); made it exact. No product change.
+
+### Not run, and why
+
+| Not run | Why |
+|---|---|
+| Docker stack | No Docker daemon available |
+| A real printer or PDF export | Print layout checked only through Chrome's print emulation |
+| The screens against the real server in a browser | Browser tests use mocked API responses; the API was exercised by backend tests |
+| Real devices | Not available |

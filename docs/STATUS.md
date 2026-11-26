@@ -34,7 +34,7 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | Custom `User` model before first auth migration | Done and tested | UUID key, lower-case CHECK constraints, status values, derived `is_active`. Migrates from empty and from the Slice 0 database |
 | Argon2id password hashing, password policy | Done and tested | 12+ characters, common, numeric and similarity checks |
 | Sign in / sign out / `me` | Done and tested | Server-side sessions, HttpOnly cookie, CSRF on every unsafe request including sign-in |
-| Failed-attempt recording and lockout | Done and tested | Identical responses for unknown and known users; blocked attempts not counted; IP limit; administrator reset exists in the database but **has no screen until Slice 6** |
+| Failed-attempt recording and lockout | Done and tested | Identical responses for unknown and known users; blocked attempts not counted; IP limit; administrator reset now has a screen (Slice 6) |
 | Idle (30 min) and absolute (12 h) timeouts | Done and tested | Unit-tested with manipulated clocks; not waited out in real time |
 | Active sessions list, end one session, **sign out other devices** | Done and tested | API tests (including cross-user attempts) and screen tests |
 | Change password (ends other sessions) | Done and tested | Forced change for temporary passwords is enforced by the server and the screen |
@@ -46,7 +46,7 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | Login events in the audit log | Not done (Slice 3) | Attempts are recorded in `login_attempt` for now |
 | Permissions on `/me` | Not done (Slice 2) | Every signed-in user currently sees all module links |
 | Password reset, two-factor authentication | Not done (Slice 7) | An administrator-set password is the only recovery route until then |
-| Users cannot yet be created in the application | Not done (Slice 6) | Only the command line can create the first administrator |
+| Users created in the application | Done (Slice 6) | The very first administrator is still created from the command line |
 
 ## Slice 2: Roles, permissions, scoped access
 
@@ -62,7 +62,7 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | Navigation and routes filtered by permission | Done and tested | The server remains the authority; direct API calls are tested |
 | Roles and permissions screen (matrix, scope selector, create/edit/delete/deactivate) | Done and tested | Read-only for people who may view but not manage users |
 | Changing a role's permission changes API behaviour at once | Done and tested | Acceptance criterion; also checked live against a running server |
-| **Assigning roles to people from a screen** | **Not done** | The API and its tests exist. The screen needs the user list, which is Slice 6. Until then roles can be assigned through the API or the Django shell |
+| Assigning roles to people from a screen | Done (Slice 6) | On the user page; sensitive roles through the Approval Centre |
 | Creating departments | Done in Slice 4 | See the Slice 4 table |
 | Default grants reflect how Tuleeni really works | **Needs your review** | They are my proposal (D-034) |
 | Record grants from a screen | Not done | Engine and model are tested; no API or screen yet because no record types exist until Phase Two |
@@ -77,7 +77,7 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | Append-only audit table with tamper-evident hash chain | Done and tested | App layer, database trigger and restricted role (D-045, D-046, D-048). Tamper detection tested |
 | Change and audit event commit together | Done and tested | If the event cannot be written, the change rolls back |
 | Sign-ins, failures, blocks, sign-outs, ended sessions, password changes | Done and tested | One event per action |
-| User creation, edit, activation, deactivation | Done and tested (services only) | Screens come with Slice 6 |
+| User creation, edit, activation, deactivation | Done and tested | Screens added in Slice 6 |
 | Role create, edit, delete, permission changes, assign, revoke | Done and tested | Permission changes list what was added, removed or rescoped |
 | Secrets never stored | Done and tested | Sanitiser at any depth; checked across a whole workflow and live |
 | Request id, IP address, device on each event | Done and tested | Response carries `X-Request-ID` |
@@ -136,11 +136,31 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | Docker stack with Slice 5 | **Done but untested in Docker** | Same migrations ran on PostgreSQL 16 outside Docker |
 | E-mail notices, request deadlines and reminders | Not started | |
 
+## Slice 6: User management and dashboards
+
+| Item | Status | Notes |
+|---|---|---|
+| Users list: search, filter by status, sort, pages | Done and tested | Server-side; shows department, position, roles, status, last sign-in |
+| Create user, edit details | Done and tested | One-time temporary password, must change at first sign-in |
+| Deactivate and reactivate, clear sign-in lockout | Done and tested | Ends sessions at once; last Administrator and yourself protected |
+| Give and remove roles on the user page | Done and tested | Sensitive roles point to the Approval Centre (D-065) |
+| Temporary password reset | Done and tested | Refused for yourself and for sensitive-role holders (D-072) |
+| Department assignment | Done, in Organisation | Follows the main post (D-056); shown on the user page, changed in Organisation |
+| Dashboard: figures, approvals, finance, notifications, activity | Done and tested | Permission-gated at the API; every figure labelled (D-074) |
+| Reference figures 85 / 42 / 43 / 15 | Done and tested | Unverified, labelled; employees go live from staff assignments |
+| Children, projects, finance totals | **Not possible yet** | Those modules do not exist; shown as reference or "No data yet" |
+| Department dashboard | Done and tested | D-075 |
+| Print stylesheet | Done and tested | Browser test checks print layout; no real printer or PDF checked |
+| Responsive at 360, 768, 1280 px | Done and tested | Dashboard, users, user page, department dashboard |
+| Verifying a reference figure | Not started | Owner to decide who may do it |
+| Bulk import of users, user photos | Not started | Not requested |
+| Reset by e-mail, 2FA, uploads | Not started | Slice 7 |
+
 ## Known limitations
 
-- User management screens do not exist yet (Slice 6). People can be assigned to positions, but there is no screen to create or edit user accounts until Slice 6. Roles and permissions exist, but no real record types exist yet, so the permissions currently decide only what you see in the navigation and who may manage roles.
+- Roles and permissions exist, but no real record types exist yet beyond users, organisation, approvals and the audit log, so permissions decide mainly navigation, user and role management, approvals and audit.
 - Sessions: an idle session expires on the server after 30 minutes but the page only notices on its next request.
-- No institutional figures (85 / 42 / 43 / 15 or otherwise) are shown anywhere. The reference-figure mechanism arrives in Slice 6.
+- The institutional figures (85 / 42 / 43 / 15) appear on the dashboard only as labelled, unverified reference figures (D-074).
 - Unknown API URLs return Django's default HTML 404 rather than the JSON error envelope.
 - The test database was a throwaway local PostgreSQL 16 cluster, not the Docker `postgres:16` image.
 
@@ -154,7 +174,7 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | 3 Audit log | Done and reviewed |
 | 4 Organisation structure | **Done, awaiting review** |
 | 5 Approval Centre | Done, awaiting your review |
-| 6 Dashboard, user management, responsive polish | Not started |
+| 6 Dashboard, user management, responsive polish | Done, awaiting your review |
 | 7 Password reset, 2FA, document uploads | Not started |
 | 8 Device registry, enrolment, revocation | Not started (design written) |
 | 9 Synchronisation server | Not started (design written) |

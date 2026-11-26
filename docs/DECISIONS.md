@@ -277,3 +277,20 @@ Requests follow the department's approval chain for their type, falling back to 
 
 ### D-071 One deliberate exception: granting a role from the server console
 The first Executive Director or Board Member cannot be approved by people who do not exist yet. `manage.py grant_role_from_console USERNAME ROLE --reason "..."` does it. It needs the server itself, demands a written reason and is audited. Whoever can run it can also read the database, so it belongs to the institution's server operator, not to a day-to-day Administrator.
+
+
+---
+
+## Slice 6: User management and dashboards (decisions D-072 to D-075)
+
+### D-072 Administrator-set passwords cannot be used to take over a sensitive account (owner principle 3)
+An Administrator can create accounts and set a one-time temporary password. The server generates it, shows it once, forces a change at first sign-in, ends the person's sessions and never stores or logs it. It **cannot** be done for yourself, nor for anyone who holds a sensitive role: whoever sees a temporary password could sign in as that person and so get around the second-person approval needed to hold the role (D-065). Those accounts will be reset by a link sent to the person's own e-mail in Slice 7. Until then, a forgotten password on a sensitive account is fixed from the server console by the server operator. Known limit: an Administrator can still lock out or deactivate people (audited), but cannot become them.
+
+### D-073 Accounts are deactivated, never deleted
+There is no delete. Deactivating ends sessions at once; the last working Administrator and your own account are protected (D-037). Reactivation is allowed. A sign-in lockout is cleared by an Administrator on the user's page (the earlier "database only" limitation is closed).
+
+### D-074 Dashboard numbers: permission-gated, labelled, never invented (CLAUDE.md rule 8)
+Institution-wide figures appear only for people holding the module's View permission at All scope; a department-limited person gets none (the server leaves them out, the screen does not merely hide them). Every figure says what it is: **live** (counted from records), **reference** (the initial figures 85, 42, 43, 15, stored in `core_referencefigure`, shown as "not yet verified"), or **none** ("No data yet"). Children counts stay reference figures until the children module exists (Phase Two). Employees switch to a live count of current staff assignments as soon as one exists, and the earlier reference figure stays visible beside it. Nobody has a screen to mark a figure verified yet; that is a decision for the owner.
+
+### D-075 Department dashboard access
+A person may open a department dashboard for their own department, or any department if they hold Administration or Approvals View at All scope, or one inside a department-limited View grant. Anything else looks the same as a missing department (404). Recent activity appears only to people who may view the audit log, within their scope. Printing uses a print stylesheet: menu and controls hidden, tables printed as tables.

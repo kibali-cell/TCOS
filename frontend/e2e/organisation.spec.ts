@@ -160,7 +160,7 @@ test('organisation: every section fits the screen with long names', async ({ pag
   await signedIn(page, FULL)
   await page.goto('/administration/organisation')
   await expect(page.getByRole('heading', { name: 'Organisation' })).toBeVisible()
-  await expect(page.getByText('Child')).toBeVisible()
+  await expect(page.getByText('Child', { exact: true })).toBeVisible()
   await noSideways(page)
 
   await page.getByRole('button', { name: 'Departments' }).click()

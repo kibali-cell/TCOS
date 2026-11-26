@@ -519,3 +519,106 @@ def set_user_status(actor: User, user: User, new_status: str, reason: str = "") 
     if new_status != User.Status.ACTIVE:
         end_all_sessions(user, UserSession.EndReason.USER_DEACTIVATED, actor=actor)
     return user
+
+
+# --- Administrator actions on other people's accounts (Slice 6) ---------------------------
+
+
+def generate_temporary_password() -> str:
+    """A random one-time password. Shown once to the administrator who sets it."""
+    import secrets
+
+    return secrets.token_urlsafe(12)
+
+
+@transaction.atomic
+def admin_create_user(actor: User, *, username: str, email: str, full_name: str, phone: str = ""):
+    """Create an account with a random temporary password the person must change at once.
+
+    Returns ``(user, temporary_password)``. The department is not set here: it follows the
+    person's main staff assignment (D-056). Roles are given separately (sensitive roles only
+    through the Approval Centre, D-065).
+    """
+    temporary = generate_temporary_password()
+    try:
+        user = create_user(
+            username=username,
+            email=email,
+            full_name=full_name,
+            phone=phone,
+            password=temporary,
+            must_change_password=True,
+            created_by=actor,
+        )
+    except DjangoValidationError as exc:
+        raise ApiValidationError(exc.message_dict) from exc
+    return user, temporary
+
+
+def _holds_sensitive_role(user: User) -> bool:
+    from apps.rbac import services as rbac_services
+    from apps.rbac.models import UserRole
+
+    today = timezone.localdate()
+    roles = [
+        row.role
+        for row in UserRole.objects.filter(user=user, revoked_at__isnull=True)
+        .select_related("role")
+        .filter(role__is_active=True)
+        if (row.valid_to is None or row.valid_to >= today)
+    ]
+    return any(rbac_services.role_sensitivity(role) for role in roles)
+
+
+@transaction.atomic
+def admin_reset_password(actor: User, user: User) -> str:
+    """Set a new random temporary password; ends the person's sessions. Returns it once.
+
+    Refused for yourself, and for anyone who holds a sensitive role: whoever sees a
+    temporary password could sign in as that person, which would get around the second-person
+    approval needed to hold that role (D-072). Slice 7 replaces this with an e-mailed link.
+    """
+    if user.pk == actor.pk:
+        raise PermissionDenied("Use Change password on your own account.", "self_reset")
+    if _holds_sensitive_role(user):
+        raise PermissionDenied(
+            "This person holds a sensitive role, so a password cannot be set for them here. "
+            "Password reset by e-mail arrives in a later release.",
+            "sensitive_account",
+        )
+    temporary = generate_temporary_password()
+    try:
+        password_validation.validate_password(temporary, user)
+    except DjangoValidationError as exc:  # practically impossible for a random value
+        raise ApiValidationError({"detail": list(exc.messages)}) from exc
+    user.set_password(temporary)
+    user.must_change_password = True
+    user.password_changed_at = timezone.now()
+    user.save(
+        update_fields=["password", "must_change_password", "password_changed_at", "updated_at"]
+    )
+    audit(
+        audit_events.USER_PASSWORD_RESET,
+        actor=actor,
+        object_type="accounts.User",
+        object_id=user.pk,
+        department_id=user.department_id,
+        metadata={"sessions_ended": True},
+    )
+    end_all_sessions(user, UserSession.EndReason.PASSWORD_CHANGED, actor=actor)
+    return temporary
+
+
+@transaction.atomic
+def unlock_user(actor: User, user: User) -> User:
+    """Clear a sign-in lockout: only failures after this moment count again."""
+    user.lockout_reset_at = timezone.now()
+    user.save(update_fields=["lockout_reset_at", "updated_at"])
+    audit(
+        audit_events.USER_UNLOCKED,
+        actor=actor,
+        object_type="accounts.User",
+        object_id=user.pk,
+        department_id=user.department_id,
+    )
+    return user

@@ -764,3 +764,91 @@ textarea {
   display: block;
   margin: 0.25rem 0;
 }
+
+/* ---- Dashboard and printing (Slice 6) ---- */
+
+.figure-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+@media (min-width: 640px) {
+  .figure-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .figure-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.figure {
+  margin: 0;
+}
+
+.figure-value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.plain-list {
+  margin: 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+
+@media print {
+  .no-print,
+  .button-row,
+  .audit-filters {
+    display: none !important;
+  }
+
+  .audit-table {
+    display: table;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+  }
+
+  .audit-table thead {
+    display: table-header-group;
+  }
+
+  .audit-table tbody {
+    display: table-row-group;
+  }
+
+  .audit-table tr {
+    display: table-row;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    break-inside: avoid;
+  }
+
+  .audit-table td,
+  .audit-table th {
+    display: table-cell;
+    border: 1px solid #999;
+    padding: 3px 5px;
+    text-align: left;
+  }
+
+  .audit-table td[data-label]::before {
+    content: none;
+  }
+
+  .figure-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
