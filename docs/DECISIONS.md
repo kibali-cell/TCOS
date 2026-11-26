@@ -205,9 +205,41 @@ Record grants store a UUID, so a model with another kind of key (the audit table
 ### D-054 New user services wait for their screen
 `update_user` and `set_user_status` (with the protections: no self-deactivation, never the last working Administrator, sessions end when someone is deactivated) are built and audited now, with tests. Their screens arrive with user management in Slice 6.
 
+## Slice 4: organisation structure
+
+### D-055 Starting structure (PROPOSAL, please review)
+One department for each of the twelve modules, each with a head position, plus an Executive Director position (in Institutional Administration) that the other heads report to: Institutional Administration, Social Welfare, Child Profiles, Education, Medical, Finance, Projects, Human Resources, Procurement, Stores and Inventory, Donor Relations, Reports and Analytics. All are top-level (no nesting) and no people are created. Everything can be renamed, nested or archived from the Organisation screen. The seed only creates what is missing and never undoes later edits. It runs inside a migration, so it is not itself in the audit log.
+
+### D-056 A person's department is their main staff assignment
+`user.department` is what department-scoped access reads. It now always follows the person's *main* current assignment, and `update_user` no longer accepts a department. Moving someone changes what they can see at once, in their existing session, with no sign-in needed. A person with no main assignment has no department, so a department-scoped grant gives them nothing until they are assigned. `create_user` still accepts a department for test fixtures; the Slice 6 screen will use assignments.
+
+### D-057 Assignments take effect immediately
+An assignment is current while it has no end date. There are no future-dated starts or ends. Transfer ends the old assignment and starts the new one in one step; history is kept. A first assignment becomes the main one. A second main one is refused (use Transfer, or add it as additional). "Make main" demotes the old one to additional. Ending the main assignment leaves the person with no department; nothing is promoted automatically.
+
+### D-058 Who may change the structure
+The `administration` module, at institution-wide (ALL) scope only: VIEW to read, CREATE to add, EDIT to change, assign and edit chains, DELETE to archive. By default that means the Administrator can do everything, the Executive Director can do everything except archive, and the Board Member can only look. A department-limited grant is not enough.
+
+### D-059 Archiving rules
+Nothing is ever deleted. A department cannot be archived while people work in it, it has active sub-departments, or positions or approval steps in other departments depend on it; a position cannot be archived while someone holds it, others report to it, or a chain names it. The screen explains each reason before the click. Archiving a department also archives its positions and switches off its chains; restoring it brings back only the department, and positions are restored one by one on purpose. Later slices add their own reasons through `ARCHIVE_BLOCKERS` (Slice 5: open requests).
+
+### D-060 No reporting cycles
+A department cannot sit under itself, a position cannot report to itself through any chain, and a person's reporting line (a named override or the position's line) cannot lead back to them, including when position lines and overrides combine. Structure changes are serialised with one database lock, and every check reads stored data, not what the caller passed in.
+
+### D-061 Approval chains
+A chain belongs to a department and a kind of request (`DEFAULT` applies when there is no more specific one). It has up to 6 ordered steps; each step is a position, a role, a named person, the department head, or the requester's line manager. A chain is replaced as a whole and the before and after are audited. The system works out the real approver when a request is submitted; requesters never choose (rule 11). Nothing uses chains until the Approval Centre (Slice 5), which also enforces that nobody approves their own request.
+
+### D-062 Department heads
+A head must hold a position in the department and have an active account. If they leave it, the head post is cleared and the change recorded.
+
+### D-063 Sync policy
+Departments, positions and staff assignments are reference data: devices may read them offline later but never change them (structure is online-only, server wins). Approval chains are online-only and are never cached on devices. The organisation API returns names only; no contact details.
+
+### D-064 Staff names are visible to anyone with administration VIEW
+Searching for people (to assign or pick an approver) returns names and usernames of active accounts to anyone with `administration.VIEW`, which includes the Board Member by default. Say if that should be narrower (D-034 review).
+
 ## Pending owner decisions
 
-Still open in `docs/SCHEMA.md` section 9: approval hierarchy tables, single versus multi-step approvals, requester-as-only-approver policy, data protection review and hosting region (firm, because the database is in the cloud). Scope semantics are now D-035; default grants are D-034 and need your review.
+Still open in `docs/SCHEMA.md` section 9: approval hierarchy tables (stored in Slice 4, D-061; whether they merge with workflow steps is still open), single versus multi-step approvals, requester-as-only-approver policy, data protection review and hosting region (firm, because the database is in the cloud). Scope semantics are now D-035; default grants are D-034 and need your review.
 
 Also: ratify the TZS tiers (D-020) before Slice 11, and confirm the builder's choices in D-022.
 

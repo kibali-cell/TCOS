@@ -39,7 +39,8 @@ describe('application shell', () => {
     const links = within(nav).getAllByRole('link')
 
     expect(MODULES).toHaveLength(12)
-    expect(links).toHaveLength(14) // dashboard, twelve modules, roles and permissions
+    expect(links).toHaveLength(15) // dashboard, twelve modules, roles, organisation
+    expect(within(nav).getByRole('link', { name: 'Organisation' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Dashboard' })).toBeInTheDocument()
     for (const module of MODULES) {
       expect(within(nav).getByRole('link', { name: module.name })).toBeInTheDocument()

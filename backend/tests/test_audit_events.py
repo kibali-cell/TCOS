@@ -158,16 +158,24 @@ def test_creating_a_user_records_the_fields_but_not_the_password(admin):
     )
 
 
-def test_updating_a_user_records_only_what_changed(admin, make_user, departments):
+def test_updating_a_user_records_only_what_changed(admin, make_user):
     actor, _ = admin
     target = make_user("target", full_name="Old Name")
-    account_services.update_user(
-        actor, target, full_name="New Name", phone="+255 700 000 000", department=departments["A"]
-    )
+    account_services.update_user(actor, target, full_name="New Name", phone="+255 700 000 000")
     event = AuditEvent.objects.get(event_type="USER_UPDATED")
     assert event.changes["full_name"] == {"from": "Old Name", "to": "New Name"}
-    assert event.changes["department_id"]["to"] == str(departments["A"].pk)
-    assert "email" not in event.changes and event.department_id == departments["A"].pk
+    assert event.changes["phone"]["to"] == "+255 700 000 000"
+    assert "email" not in event.changes and "department_id" not in event.changes
+
+
+def test_a_department_cannot_be_edited_directly(admin, make_user, departments):
+    """It follows the main staff assignment (Slice 4)."""
+    actor, _ = admin
+    target = make_user("target")
+    with pytest.raises(ValidationError):
+        account_services.update_user(actor, target, department=departments["A"])
+    target.refresh_from_db()
+    assert target.department_id is None
 
 
 def test_an_update_that_changes_nothing_records_nothing(admin, make_user):

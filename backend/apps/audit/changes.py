@@ -46,7 +46,9 @@ def _object_fields(instance) -> dict:
     return {
         "object_type": instance._meta.label,
         "object_id": instance.pk,
-        "department_id": getattr(instance, "department_id", None),
+        "department_id": getattr(
+            instance, getattr(type(instance), "AUDIT_DEPARTMENT_FIELD", "department_id"), None
+        ),
     }
 
 

@@ -76,7 +76,10 @@ def test_rbac_views_name_their_module_and_other_views_are_on_the_allow_lists():
     problems = []
     for path, (view_class, _cb) in all_view_classes().items():
         name = dotted(view_class)
-        uses_rbac = RBACPermission in view_class.permission_classes
+        uses_rbac = any(
+            isinstance(c, type) and issubclass(c, RBACPermission)
+            for c in view_class.permission_classes
+        )
         if uses_rbac:
             if not getattr(view_class, "rbac_module", None):
                 problems.append(f"{path}: RBACPermission without rbac_module")

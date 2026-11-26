@@ -195,6 +195,8 @@ Index (content_type_id, object_id), (user_id).
 
 ## 5. organisation
 
+**Built in Slice 4** (tables `organisation_department`, `organisation_position`, `organisation_staffassignment`, `organisation_approvalhierarchy`). As built, beyond the draft below: every table also has `version` (rises on every change), `created_by`, `updated_by` and a declared sync policy (D-063). Database CHECKs and partial unique indexes enforce: no self-parent or self-boss, archived implies inactive with a stamp, one live head position per department, one current main assignment per person, no duplicate current assignment to a position, end date not before start, and each chain step naming exactly what its type needs. Cycles across several rows are prevented in the service layer (D-060). A position's department cannot change after creation. Chain `request_type` defaults to `DEFAULT`.
+
 ### `department`
 
 id, code (unique), name, description, parent_id (self FK, nullable), head_id (FK user, nullable), is_active, is_archived (+ archived_at/by), created_at, updated_at.

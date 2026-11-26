@@ -2,7 +2,7 @@
 
 Honest completion status. Categories: **Done and tested**, **Done but untested**, **Partial**, **Not done**.
 
-Last updated: Slice 2 built and tested (awaiting review). Hybrid and offline design is documents only.
+Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline design is documents only.
 
 ## Slice 0: Project foundation
 
@@ -63,7 +63,7 @@ Last updated: Slice 2 built and tested (awaiting review). Hybrid and offline des
 | Roles and permissions screen (matrix, scope selector, create/edit/delete/deactivate) | Done and tested | Read-only for people who may view but not manage users |
 | Changing a role's permission changes API behaviour at once | Done and tested | Acceptance criterion; also checked live against a running server |
 | **Assigning roles to people from a screen** | **Not done** | The API and its tests exist. The screen needs the user list, which is Slice 6. Until then roles can be assigned through the API or the Django shell |
-| **Creating departments** | **Not done** | Slice 4. Department scope is tested with a test-only model |
+| Creating departments | Done in Slice 4 | See the Slice 4 table |
 | Default grants reflect how Tuleeni really works | **Needs your review** | They are my proposal (D-034) |
 | Record grants from a screen | Not done | Engine and model are tested; no API or screen yet because no record types exist until Phase Two |
 | Audit events for role and permission changes | Done in Slice 3 | See the Slice 3 table |
@@ -91,9 +91,29 @@ Last updated: Slice 2 built and tested (awaiting review). Hybrid and offline des
 | Audit events for departments, approvals, documents, devices | Not started | Those features arrive in Slices 4 to 9; each will write events through the same service |
 | Real devices (iPhone, Android, Mac, Edge) | Not tested | Chrome on Linux only |
 
+## Slice 4: Organisation structure
+
+| Item | Status | Notes |
+|---|---|---|
+| Departments (nesting, head, archive and restore) | Done and tested | Cycles refused; archive blocked with a plain reason (D-059, D-060) |
+| Positions (reporting lines, head post, archive) | Done and tested | Reporting lines may cross departments |
+| Staff assignments (assign, transfer, make main, end, reporting override) | Done and tested | History kept; no future-dated moves (D-057) |
+| Department scope follows the main assignment | Done and tested | Moving a person changes what they can see in their current session (D-056) |
+| Approval chains stored per department and request type | Done and tested | Not used by anything yet: the Approval Centre is Slice 5 |
+| Starting structure (12 departments, head positions, Executive Director) | Done and tested | A proposal for your review (D-055); no people invented |
+| Organisation screen (chart, departments, positions, staff, approval chains) | Done and tested | Checked at 360, 768 and 1280 px with very long names |
+| Every change audited, with the department, in one transaction with the change | Done and tested | Failed audit write undoes the change |
+| Restricted access: administration at ALL scope; archive Administrator only | Done and tested | All 11 roles tested, plus department-limited grants refused |
+| Migrations reverse and re-apply; fresh database | Done and tested | Seed is repeatable and never undoes edits |
+| Two people changing the structure at the same moment | Built, not tested | One database lock serialises changes; there is no concurrent-writer test |
+| Seed and structure on the Docker stack | **Done but untested in Docker** | Same migrations ran against PostgreSQL 16 outside Docker |
+| Hierarchy-based approver resolution | Not started | Slice 5 |
+| Staff directory for offline use | Not started | Declared as readable offline; built in Slices 9 and 10 |
+| Bulk import of staff or departments | Not started | Not requested |
+
 ## Known limitations
 
-- Approvals and user management screens do not exist yet. Roles and permissions exist, but no real record types exist yet, so the permissions currently decide only what you see in the navigation and who may manage roles.
+- Approvals and user management screens do not exist yet. People can be assigned to positions, but there is no screen to create or edit user accounts until Slice 6. Roles and permissions exist, but no real record types exist yet, so the permissions currently decide only what you see in the navigation and who may manage roles.
 - Sessions: an idle session expires on the server after 30 minutes but the page only notices on its next request.
 - No institutional figures (85 / 42 / 43 / 15 or otherwise) are shown anywhere. The reference-figure mechanism arrives in Slice 6.
 - Unknown API URLs return Django's default HTML 404 rather than the JSON error envelope.
@@ -106,8 +126,8 @@ Last updated: Slice 2 built and tested (awaiting review). Hybrid and offline des
 | 0 Project setup | Done and reviewed (Docker run confirmed by owner) |
 | 1 Custom user, authentication, shell | Done and reviewed |
 | 2 Roles, permissions, scoped access | Done and reviewed |
-| 3 Audit log | **Done, awaiting review** |
-| 4 Organisation structure | Not started |
+| 3 Audit log | Done and reviewed |
+| 4 Organisation structure | **Done, awaiting review** |
 | 5 Approval Centre | Not started |
 | 6 Dashboard, user management, responsive polish | Not started |
 | 7 Password reset, 2FA, document uploads | Not started |

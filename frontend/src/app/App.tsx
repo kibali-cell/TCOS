@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 
 import { AccountPage } from '../features/account/AccountPage'
+import { OrganisationPage } from '../features/organisation/OrganisationPage'
 import { AuditLogPage } from '../features/audit/AuditLogPage'
 import { LoginPage } from '../features/auth/LoginPage'
 import { RequireAuth } from '../features/auth/RequireAuth'
@@ -19,6 +20,9 @@ export function App() {
           <Route path="account" element={<AccountPage />} />
           <Route element={<RequirePermission module="users" action="VIEW" />}>
             <Route path="administration/roles" element={<RolesPage />} />
+          </Route>
+          <Route element={<RequirePermission module="administration" action="VIEW" />}>
+            <Route path="administration/organisation" element={<OrganisationPage />} />
           </Route>
           <Route element={<RequirePermission module="audit" action="VIEW" />}>
             <Route path="administration/audit" element={<AuditLogPage />} />

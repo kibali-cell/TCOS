@@ -443,8 +443,12 @@ def change_password(request, user: User, current_password: str, new_password: st
 
 @transaction.atomic
 def update_user(actor: User, user: User, **fields) -> User:
-    """Change profile fields (full_name, email, phone, department). Audited with a diff."""
-    allowed = {"full_name", "email", "phone", "department"}
+    """Change profile fields (full_name, email, phone). Audited with a diff.
+
+    A person's department is not edited here: it follows their main staff assignment
+    (``apps.organisation.services``), which is what department-scoped access reads.
+    """
+    allowed = {"full_name", "email", "phone"}
     unknown = set(fields) - allowed
     if unknown:
         raise ApiValidationError({"detail": [f"Cannot change: {', '.join(sorted(unknown))}."]})

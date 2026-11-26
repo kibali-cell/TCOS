@@ -271,3 +271,74 @@ Migrations and `setup_database_roles` as the database owner, then the Django ser
 | Audit of idle-session expiry | Not built (D-051) |
 | Export of more than 50,000 events | Refused by design; narrow the filters |
 
+## Slice 4: organisation structure
+
+**Environment:** as Slice 3 (Linux, Python 3.13, Node 22, PostgreSQL 16 throwaway cluster, system Chrome). No Docker daemon.
+
+### Summary
+
+| Check | Command | Result |
+|---|---|---|
+| Whole pipeline | `make check` | Passed (exit 0) |
+| Backend lint, format | `ruff check .`, `ruff format --check .` | Passed |
+| Frontend lint, types | `npm run lint`, `npx tsc -b` | Passed |
+| Pending migrations | `makemigrations --check --dry-run` | No changes detected |
+| Migrate an empty database | `manage.py migrate` | Passed; 12 departments and 12 positions seeded |
+| Reverse then re-apply organisation migrations | `migrate organisation 0001`, then `migrate` | Passed both ways |
+| Backend tests | `pytest` | **535 passed** (was 380) |
+| Frontend unit tests | `npm test` | **88 passed**, 9 files (was 65) |
+| Browser tests | `npx playwright test` | **42 passed** (was 30) |
+| Production build | `npm run build` | Succeeded |
+
+### Backend tests by area (155 new)
+
+| File | Tests | Covers |
+|---|---|---|
+| `test_org_models.py` | 25 | Starting structure (12 departments, one head position each, heads report to the Executive Director, no people, flat); re-seeding creates nothing and never undoes edits; every model declares a sync policy with no offline writes; **database refuses**: self-parent, archived-but-active, unstamped archive, duplicate titles, second head position, self-boss, second main assignment, duplicate current position, bad dates, self-reporting, a chain step naming the wrong target for its type, step 0 or a duplicate step |
+| `test_org_services.py` | 63 | Create, edit, no-op writes nothing, version rises; **no cycles** for departments, positions and people (including mixed position and override loops) and checks use stored data not stale objects; head rules and clearing when the head leaves; first assignment becomes main and sets the person's department; transfer, make main, end; refusals (inactive, archived, future date, duplicate, second main); **archive blocked** by people, sub-departments, other departments' reporting lines and chains, and later-slice hooks, with counted reasons; archive cascade and restore rules; chains of every kind, replace, empty removes, validation, refused chain keeps the old one; exactly one audit event per change; **a failed audit write undoes the change**; audit chain intact after a workflow; tree shows names only |
+| `test_org_api.py` | 66 | **Each of the 11 roles** read, create and archive (Administrator all; Executive Director all but archive; Board Member read only; the other eight nothing); anonymous 401; forced password change blocked; **department-limited grants refused**; CSRF enforced; no hard delete; validation envelope; list search, filters, archived views, paging; blockers shown before archiving; head, position, assignment, transfer, make main flows; reporting loop refused; people search returns names only; **moving a person changes what they can see in the same session**; a second assignment does not widen access; chain round trip and bad chains; options; tree; changes appear in the audit log with the department; a refused change leaves no event; **a department-scoped audit viewer sees only their department's organisation changes**; no email, phone or password in any response |
+
+One Slice 3 test was changed on purpose: `update_user` no longer accepts a department (D-056), so that test now checks the department is refused. The Slice 2 guard test (every view has RBAC) now accepts subclasses of the RBAC permission class.
+
+### Frontend tests (23 new)
+
+Refusal without administration access with no API request made; chart shows nesting, heads, people, vacancies and reporting lines, asks for archived only when told, shows errors; departments list, blockers explained with the Archive button disabled, archive after confirmation, create with a server refusal shown in plain words, edit and name a head, view-only has no write controls; positions create, filter, blockers, cycle refusal shown; staff search, assign by finding a person by name, transfer, end (with cancel and a server refusal), view-only; approval chains load, edit, reorder, save, limit at the maximum, remove, switch request type, server refusal; paging helper including its page limit.
+
+**Browser (12 new, 4 tests x 3 widths):** every section fits 360, 768 and 1280 px with very long department, position and person names and no sideways scrolling; tabs and buttons at least 40 px tall; the Organisation link and screen follow permissions; no access shows no screen.
+
+### Live check with real processes (no mocks)
+
+Migrations and role setup as the owner; Django server started as the restricted role `tcos_app`; real HTTP with CSRF and a session:
+
+| Step | Result |
+|---|---|
+| Sign in as an Administrator | 200 |
+| Tree | 12 seeded departments |
+| Create department, position; assign a person | Created |
+| Name the person head; set a two-step chain | 200, 200 |
+| Archive while that person works there | 400 with "1 person still works in it (move them or end their assignments first)" |
+| End assignment (head cleared), then archive | 200, 200 |
+| Audit viewer, filtered to organisation | 8 events: created, updated, archived for departments, positions and assignments |
+| Person's department after assignment ended | Empty |
+| `verify_audit_chain` | Intact, 27 events |
+| `DELETE` on the audit log as `tcos_app` | Permission denied |
+| Server log | No traceback, no password |
+
+### Problems found and fixed during the slice
+
+1. Cycle and "archived parent" checks followed relations on objects the caller passed in, which can be out of date. They now read stored rows (found by a test that moved a department and then tried to close the loop).
+2. The Slice 2 guard test only recognised the exact RBAC class, not the stricter organisation version that also demands institution-wide scope. The guard now accepts subclasses.
+3. A person with a department-scoped role and no department gets a refusal (403), not an empty list. The engine was right; the test expectation was wrong.
+4. A test assertion on the audit chain used attribute access on a dictionary; test helper tidy-ups; two Vitest queries matched more than one element.
+5. A test sequence left the phone menu open over the page; it now closes it as a user would.
+6. My first live-check label called a 400 on an archived department a "cycle refusal". It was the archived-department guard; cycles are covered by automated tests.
+
+### Not run, and why
+
+| Item | Reason |
+|---|---|
+| Docker stack with Slice 4 | No Docker daemon here. The same migrations and server ran outside Docker against PostgreSQL 16 |
+| Two people editing the structure at once | One database lock serialises changes, but there is no concurrent-writer test |
+| Real iPhone, Android, Mac, Edge | Only Chrome on Linux |
+| Approval resolution from chains | Slice 5 |
+

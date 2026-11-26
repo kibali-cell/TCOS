@@ -654,3 +654,80 @@ a {
     content: none;
   }
 }
+
+/* ---- Organisation (Slice 4) ---- */
+
+.org-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+
+.org-tree,
+.org-positions,
+.chain-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.org-tree .org-tree,
+.org-tree details .org-tree {
+  margin: 8px 0 0 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+
+.org-tree > li {
+  margin-bottom: 8px;
+}
+
+.org-tree details {
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.org-tree summary {
+  min-height: 32px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.org-positions {
+  margin-top: 8px;
+}
+
+.org-positions li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.chain-steps > li {
+  margin-bottom: 12px;
+}
+
+.field textarea {
+  width: 100%;
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid #8a96a3;
+  border-radius: 8px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-bottom: 8px;
+}

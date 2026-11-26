@@ -51,6 +51,13 @@ export function Layout() {
                 </NavLink>
               </li>
             )}
+            {can('administration', 'VIEW') && (
+              <li>
+                <NavLink to="/administration/organisation" onClick={close}>
+                  Organisation
+                </NavLink>
+              </li>
+            )}
             {can('audit', 'VIEW') && (
               <li>
                 <NavLink to="/administration/audit" onClick={close}>
