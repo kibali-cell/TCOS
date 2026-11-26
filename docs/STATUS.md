@@ -99,7 +99,7 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | Positions (reporting lines, head post, archive) | Done and tested | Reporting lines may cross departments |
 | Staff assignments (assign, transfer, make main, end, reporting override) | Done and tested | History kept; no future-dated moves (D-057) |
 | Department scope follows the main assignment | Done and tested | Moving a person changes what they can see in their current session (D-056) |
-| Approval chains stored per department and request type | Done and tested | Not used by anything yet: the Approval Centre is Slice 5 |
+| Approval chains stored per department and request type | Done and tested | Used by the Approval Centre since Slice 5 |
 | Starting structure (12 departments, head positions, Executive Director) | Done and tested | A proposal for your review (D-055); no people invented |
 | Organisation screen (chart, departments, positions, staff, approval chains) | Done and tested | Checked at 360, 768 and 1280 px with very long names |
 | Every change audited, with the department, in one transaction with the change | Done and tested | Failed audit write undoes the change |
@@ -107,13 +107,38 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | Migrations reverse and re-apply; fresh database | Done and tested | Seed is repeatable and never undoes edits |
 | Two people changing the structure at the same moment | Built, not tested | One database lock serialises changes; there is no concurrent-writer test |
 | Seed and structure on the Docker stack | **Done but untested in Docker** | Same migrations ran against PostgreSQL 16 outside Docker |
-| Hierarchy-based approver resolution | Not started | Slice 5 |
+| Hierarchy-based approver resolution | Done and tested | Slice 5 |
 | Staff directory for offline use | Not started | Declared as readable offline; built in Slices 9 and 10 |
 | Bulk import of staff or departments | Not started | Not requested |
 
+## Slice 5: Approval Centre
+
+| Item | Status | Notes |
+|---|---|---|
+| Requests: draft, submit, review, approve, reject, cancel, comment | Done and tested | Server-side state machine; every illegal transition refused (409) |
+| Official numbers `TCOS-REQ-YYYY-NNNNNN` | Done and tested | Row-locked sequence; unique under parallel submission |
+| Multi-step routes from the Slice 4 chains, with escalation | Done and tested | D-068; route frozen at submission |
+| Nobody decides their own request | Done and tested | In the service, through the API, and by a database trigger |
+| Append-only history | Done and tested | Application, trigger and restricted database role; verified live as `tcos_app` |
+| In-app notifications | Done and tested | No e-mail: no mail server is configured |
+| Sensitive role grants need a second person (principle 3) | Done and tested | D-065; direct grant refused; requester, grantee and non-Board approvers cannot approve top roles |
+| Role edits cannot bypass it | Done and tested | D-067 |
+| TZS limits explicit, versioned, changed only by approval (principle 2) | Done and tested | Screen shows the limits in force and whether ratified. **Numbers still provisional and unratified** |
+| HIGH-risk decisions ask for the approver's password | Done and tested | |
+| Access review screen and DATA_SOVEREIGNTY.md (principle 1) | Done and tested | Live from permission tables; viewing is audited |
+| Hosting region | **Open owner decision** | Shown as "not decided" |
+| Open requests block archiving a department | Done and tested | Uses the Slice 4 hook |
+| Screens: My requests, Pending my approval, All, detail, new request, role grant, limits, access review | Done and tested | Vitest, and Playwright at 360, 768 and 1280 px |
+| Routing by amount (who approves what) | Not started | Risk is recorded only; needs the owner's rules (SCHEMA 9.7) |
+| Reassigning a request, attachments, links to other records | Not started | Not requested yet; attachments arrive with uploads in Slice 7 |
+| Offline-created drafts | Fields ready, not exercised | Slices 9 to 11 |
+| Concurrent decisions by two approvers | Tested | Test uses real parallel database sessions |
+| Docker stack with Slice 5 | **Done but untested in Docker** | Same migrations ran on PostgreSQL 16 outside Docker |
+| E-mail notices, request deadlines and reminders | Not started | |
+
 ## Known limitations
 
-- Approvals and user management screens do not exist yet. People can be assigned to positions, but there is no screen to create or edit user accounts until Slice 6. Roles and permissions exist, but no real record types exist yet, so the permissions currently decide only what you see in the navigation and who may manage roles.
+- User management screens do not exist yet (Slice 6). People can be assigned to positions, but there is no screen to create or edit user accounts until Slice 6. Roles and permissions exist, but no real record types exist yet, so the permissions currently decide only what you see in the navigation and who may manage roles.
 - Sessions: an idle session expires on the server after 30 minutes but the page only notices on its next request.
 - No institutional figures (85 / 42 / 43 / 15 or otherwise) are shown anywhere. The reference-figure mechanism arrives in Slice 6.
 - Unknown API URLs return Django's default HTML 404 rather than the JSON error envelope.
@@ -128,7 +153,7 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | 2 Roles, permissions, scoped access | Done and reviewed |
 | 3 Audit log | Done and reviewed |
 | 4 Organisation structure | **Done, awaiting review** |
-| 5 Approval Centre | Not started |
+| 5 Approval Centre | Done, awaiting your review |
 | 6 Dashboard, user management, responsive polish | Not started |
 | 7 Password reset, 2FA, document uploads | Not started |
 | 8 Device registry, enrolment, revocation | Not started (design written) |

@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth, useCurrentUser } from '../features/auth/useAuth'
 import { useCan } from '../features/auth/usePermissions'
+import { api } from '../lib/api'
 import { MODULES } from './modules'
 
 export function Layout() {
@@ -10,7 +11,20 @@ export function Layout() {
   const user = useCurrentUser()
   const { signOut } = useAuth()
   const can = useCan()
+  const [badge, setBadge] = useState(0)
+  const canApprovals = can('approvals', 'VIEW')
   const visibleModules = MODULES.filter((module) => can(module.permission, 'VIEW'))
+
+  useEffect(() => {
+    if (!canApprovals) return
+    let cancelled = false
+    api<{ pending: number; unread_notifications: number }>('/approvals/summary/')
+      .then((s) => !cancelled && setBadge(s.pending + s.unread_notifications))
+      .catch(() => undefined) // a badge is a convenience; the page itself reports errors
+    return () => {
+      cancelled = true
+    }
+  }, [canApprovals])
 
   useEffect(() => {
     if (!open) return
@@ -44,6 +58,18 @@ export function Layout() {
                 </NavLink>
               </li>
             ))}
+            {canApprovals && (
+              <li>
+                <NavLink to="/approvals" onClick={close}>
+                  Approval Centre
+                  {badge > 0 && (
+                    <span className="badge" aria-label={`${badge} waiting`}>
+                      {badge}
+                    </span>
+                  )}
+                </NavLink>
+              </li>
+            )}
             {can('users', 'VIEW') && (
               <li>
                 <NavLink to="/administration/roles" onClick={close}>
@@ -62,6 +88,13 @@ export function Layout() {
               <li>
                 <NavLink to="/administration/audit" onClick={close}>
                   Audit log
+                </NavLink>
+              </li>
+            )}
+            {can('audit', 'VIEW') && (
+              <li>
+                <NavLink to="/administration/access-review" onClick={close}>
+                  Access review
                 </NavLink>
               </li>
             )}

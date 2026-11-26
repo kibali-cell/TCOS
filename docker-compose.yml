@@ -46,6 +46,7 @@ services:
       APP_DATABASE_URL: postgres://${TCOS_APP_DB_USER:-tcos_app}:${TCOS_APP_DB_PASSWORD:?Set TCOS_APP_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-tcos}
       TCOS_APP_DB_USER: ${TCOS_APP_DB_USER:-tcos_app}
       TCOS_APP_DB_PASSWORD: ${TCOS_APP_DB_PASSWORD:?Set TCOS_APP_DB_PASSWORD in .env}
+      TCOS_HOSTING_REGION: ${TCOS_HOSTING_REGION:-}
     volumes:
       - ./backend:/app
     ports:

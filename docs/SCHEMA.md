@@ -287,6 +287,10 @@ Protected by an UPDATE/DELETE-blocking trigger like the audit table. A trigger a
 Valid transitions (enforced in service layer, mirrored by tests):
 DRAFT→SUBMITTED; SUBMITTED→UNDER_REVIEW; UNDER_REVIEW→APPROVED|REJECTED; DRAFT|SUBMITTED|UNDER_REVIEW→CANCELLED. APPROVED, REJECTED, CANCELLED are terminal.
 
+### As built in Slice 5 (differences from the draft above)
+
+Tables: `approvals_approvalrequest`, `approvals_approvalassignee` (who may decide the current step; replaces a single `assigned_approver_id`, because a role or position can name several people), `approvals_approvalaction` (append-only, with triggers), `approvals_requestsequence`, `approvals_notification`, `approvals_tzslimitpolicy` (versioned TZS limits). The `route` of a request is frozen JSON copied from the Slice 4 chain at submission. There are no `approval_workflow` tables (D-068). Number format `TCOS-REQ-YYYY-NNNNNN`. Related-object links are not built yet.
+
 ## 7. audit
 
 ### `audit_event` (append-only) — built in Slice 3 as table `audit_auditevent`
@@ -439,11 +443,11 @@ id, occurred_at, user_id, device_id, direction (`PULL`, `PUSH`), applied_count, 
 
 1. ~~**Roles per user**~~ **Decided: users may hold several roles.** Effective permission is the union, using the widest scope per (module, action). Tests must cover multi-role users, including a role that is department-restricted combined with one that is not.
 2. **Scope semantics:** is `DEPARTMENT` scope enough for sensitive modules (e.g. should the Medical Officer see only medical records regardless of department)? Likely handled by module permissions, but confirm.
-3. **Approval hierarchy tables:** keep `approval_hierarchy` (department chains) and `approval_workflow_step` separate, or merge into one? Draft keeps both for clarity; merging reduces complexity.
-4. **Single-step or multi-step approvals in Phase One?** Draft supports multi-step. Single-step would be faster to build and test.
+3. ~~**Approval hierarchy tables:**~~ **Decided (D-068): the Slice 4 chain tables are used as they are; no separate workflow-step tables.** Was: keep `approval_hierarchy` (department chains) and `approval_workflow_step` separate, or merge into one? Draft keeps both for clarity; merging reduces complexity.
+4. ~~**Single-step or multi-step approvals in Phase One?**~~ **Decided: multi-step, from the department chain (D-068).** Draft supports multi-step. Single-step would be faster to build and test.
 5. ~~**Audit hash chain:**~~ **Decided: included (D-046).** Was: include tamper-evident hashing now (more work, stronger evidence for auditors and donors), or rely on DB permissions and off-site backups?
-6. **Requester is the only possible approver** (e.g. Executive Director requesting something with no superior): escalate to Board Member role, or block and require an administrator to reassign? Needs a policy.
-7. **Default permission grants per role:** I will propose a matrix in Slice 2 for you to correct. Do you already have a view on who may approve what (e.g. spending limits)?
+6. ~~**Requester is the only possible approver**~~ **Decided (D-068): escalate to Executive Director, then Board Member; otherwise refuse submission. Never self-approve.** (e.g. Executive Director requesting something with no superior): escalate to Board Member role, or block and require an administrator to reassign? Needs a policy.
+7. **Default permission grants per role, and who approves what by amount:** risk level is recorded (D-066) but routing by amount is not built. I will propose a matrix in Slice 2 for you to correct. Do you already have a view on who may approve what (e.g. spending limits)?
 8. ~~**Language**~~ **Decided: English only.** No translation framework is needed.
 9. ~~**Session management**~~ **Decided: yes.** Visible "where you are signed in" list, per-device sign out and "sign out all other devices". Idle timeout 30 minutes, absolute timeout 12 hours.
 10. **Data protection:** confirm that Tanzania's Personal Data Protection Act obligations (and any donor safeguarding rules) have been reviewed, since child modules in Phase Two will depend on the classification and encryption approach set here.

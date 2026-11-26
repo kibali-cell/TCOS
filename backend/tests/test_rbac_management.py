@@ -14,6 +14,7 @@ from .rbac_testapp.models import Record
 
 ROLES = "/api/v1/rbac/roles/"
 RECORDS = "/api/v1/test/records/"
+STORE_RECORDS = "/api/v1/test/store-records/"
 _n = itertools.count(1)
 
 
@@ -181,21 +182,23 @@ def test_acceptance_changing_a_role_changes_api_behaviour_immediately(admin, new
     clerk_client = new_client()
     assert sign_in(clerk_client, "clerk.user").status_code == 200  # stays signed in throughout
 
-    assert clerk_client.get(RECORDS).status_code == 403  # no permission yet
+    assert clerk_client.get(STORE_RECORDS).status_code == 403  # no permission yet
 
-    put(admin_client, grants_url(role), {"grants": [cell("finance", "VIEW")]})
-    assert clerk_client.get(RECORDS).status_code == 200
-    assert patch(clerk_client, f"{RECORDS}{record.pk}/", {"title": "x"}).status_code == 403
+    put(admin_client, grants_url(role), {"grants": [cell("stores", "VIEW")]})
+    assert clerk_client.get(STORE_RECORDS).status_code == 200
+    assert patch(clerk_client, f"{STORE_RECORDS}{record.pk}/", {"title": "x"}).status_code == 403
 
     put(
         admin_client,
         grants_url(role),
-        {"grants": [cell("finance", "VIEW"), cell("finance", "EDIT")]},
+        {"grants": [cell("stores", "VIEW"), cell("stores", "EDIT")]},
     )
-    assert patch(clerk_client, f"{RECORDS}{record.pk}/", {"title": "Edited"}).status_code == 200
+    assert (
+        patch(clerk_client, f"{STORE_RECORDS}{record.pk}/", {"title": "Edited"}).status_code == 200
+    )
 
     put(admin_client, grants_url(role), {"grants": []})
-    assert clerk_client.get(RECORDS).status_code == 403  # and gone again
+    assert clerk_client.get(STORE_RECORDS).status_code == 403  # and gone again
     me = clerk_client.get("/api/v1/auth/me/").json()
     assert me["permissions"] == {}
 
@@ -222,7 +225,7 @@ def test_deactivating_a_role_cuts_access_at_once(admin, new_client, make_user):
 def test_assign_with_department_and_dates_then_revoke(admin, make_user, departments):
     _admin, client = admin
     person = make_user("new.officer")
-    role = Role.objects.get(code="FINANCE_OFFICER")
+    role = Role.objects.get(code="STOREKEEPER")
     today = timezone.localdate()
 
     response = post(
@@ -237,9 +240,7 @@ def test_assign_with_department_and_dates_then_revoke(admin, make_user, departme
     )
     assert response.status_code == 201
     body = response.json()
-    assert (
-        body["department"]["name"] == "Department A" and body["role"]["code"] == "FINANCE_OFFICER"
-    )
+    assert body["department"]["name"] == "Department A" and body["role"]["code"] == "STOREKEEPER"
 
     listing = client.get(user_roles_url(person)).json()["results"]
     assert len(listing) == 1
@@ -273,7 +274,7 @@ def test_assignment_rules(admin, make_user, departments):
 
     departments["B"].is_active = False
     departments["B"].save()
-    other = Role.objects.get(code="HR_OFFICER")
+    other = make_role(("reports", "VIEW", "ALL"))
     assert (
         post(
             client, url, {"role": str(other.pk), "department": str(departments["B"].pk)}
@@ -302,28 +303,28 @@ def test_assigning_a_role_changes_what_the_person_can_do_at_once(admin, new_clie
     person = make_user("fresh.hire")
     client = new_client()
     sign_in(client, "fresh.hire")
-    assert client.get(RECORDS).status_code == 403
+    assert client.get(STORE_RECORDS).status_code == 403
 
-    finance = Role.objects.get(code="FINANCE_OFFICER")
-    assignment = post(admin_client, user_roles_url(person), {"role": str(finance.pk)}).json()
-    assert client.get(RECORDS).status_code == 200
+    stores = Role.objects.get(code="STOREKEEPER")
+    assignment = post(admin_client, user_roles_url(person), {"role": str(stores.pk)}).json()
+    assert client.get(STORE_RECORDS).status_code == 200
 
     delete(admin_client, f"{user_roles_url(person)}{assignment['id']}/")
-    assert client.get(RECORDS).status_code == 403
+    assert client.get(STORE_RECORDS).status_code == 403
 
 
 def test_a_person_with_two_roles_through_the_api_has_both(admin, new_client, make_user):
     _admin, admin_client = admin
     person = make_user("two.hats")
-    for code in ("FINANCE_OFFICER", "STOREKEEPER"):
-        role = Role.objects.get(code=code)
+    reports = make_role(("reports", "VIEW", "ALL"))
+    for role in (reports, Role.objects.get(code="STOREKEEPER")):
         assert post(admin_client, user_roles_url(person), {"role": str(role.pk)}).status_code == 201
     client = new_client()
     sign_in(client, "two.hats")
     permissions = client.get("/api/v1/auth/me/").json()["permissions"]
-    assert "finance" in permissions and "stores" in permissions and "medical" not in permissions
+    assert "reports" in permissions and "stores" in permissions and "medical" not in permissions
     assert {r["code"] for r in client.get("/api/v1/auth/me/").json()["roles"]} == {
-        "FINANCE_OFFICER",
+        reports.code,
         "STOREKEEPER",
     }
 

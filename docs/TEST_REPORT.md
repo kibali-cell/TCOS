@@ -342,3 +342,50 @@ Migrations and role setup as the owner; Django server started as the restricted 
 | Real iPhone, Android, Mac, Edge | Only Chrome on Linux |
 | Approval resolution from chains | Slice 5 |
 
+
+
+## Slice 5: Approval Centre
+
+**Environment:** as Slice 4 (Linux, Python 3.13, Node 22, PostgreSQL 16 throwaway cluster, system Chrome). No Docker daemon.
+
+### Summary
+
+| Check | Command | Result |
+|---|---|---|
+| Whole pipeline | `make check` | Passed (exit 0) |
+| Backend tests | `pytest --create-db` | 595 passed (60 new for approvals and sensitive grants) |
+| Frontend unit tests | `npx vitest run` | 98 passed (10 new) |
+| Browser layout tests | `npx playwright test` | 45 passed (3 new: approvals screens at 360, 768, 1280 px) |
+| Pending migrations | `makemigrations --check --dry-run` | No changes detected |
+| Migrate an empty database, reverse `approvals` to 0001, apply again | `manage.py migrate` | Passed |
+
+### What the tests cover
+
+Every legal and illegal state change; self-approval through the API; the wrong approver; department limits; escalation when the requester is the only possible approver; two approvers deciding at once; request numbers unique under parallel submission; history refusing change; notifications; sensitive roles refused on the direct route, requester or grantee unable to approve, Administrator grants needing a Board Member, role edits unable to add sensitive access to a role with holders; TZS limits changeable only through an approved request; high-risk decisions needing the password.
+
+### Live check against real PostgreSQL as the restricted role
+
+Fresh database, migrated, `setup_database_roles` run, then connected as `tcos_app`:
+
+| Attempt | Result |
+|---|---|
+| Insert a history row | Allowed |
+| Update, delete, truncate the history | Refused: permission denied |
+| Insert an APPROVE row whose actor is the requester | Refused by the trigger |
+| Delete history as the database owner | Refused by the trigger |
+| Limits in force | Version 1, 200,000 / 2,000,000, not ratified |
+
+### Problems found during the slice
+
+- A stale frontend test clicked Approve before typing the password; the page shows the password box up front. Test corrected, not the page.
+- Lint: model methods out of the order the project style requires. Fixed.
+- While continuing after a session break I overwrote `approvals/models.py` by mistake and rebuilt it from migration 0001; `makemigrations --check` and all 595 tests confirm it matches.
+
+### Not run, and why
+
+| Not run | Why |
+|---|---|
+| Docker stack | No Docker daemon available |
+| Real devices and browsers other than Chrome on Linux | Not available |
+| Multi-user load, and e-mail | No such feature / not configured |
+| The approvals flow in a real browser against the real server | Browser tests use mocked API responses; the real server was exercised by backend API tests only |

@@ -25,10 +25,45 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from apps.audit import events as audit_events
 from apps.audit.service import record as audit
 
-from .constants import ACTIONS, ADMINISTRATOR_ROLE, ALL, SCOPES
+from .constants import (
+    ACTIONS,
+    ADMINISTRATOR_ROLE,
+    ALL,
+    DECISION_ACTIONS,
+    SCOPES,
+    SENSITIVE_ACTIONS,
+    SENSITIVE_MODULES,
+)
 from .models import Permission, Role, RolePermission, UserRole
 
 REQUIRED_ADMIN_GRANT = ("users", "MANAGE_USERS", ALL)
+
+
+def sensitivity_of(grants) -> list[str]:
+    """Why a set of (module, action, scope) grants is sensitive. Empty means not sensitive.
+
+    The rule is in ``constants.py`` (D-065). Reasons are plain sentences for the screen.
+    """
+    reasons = set()
+    for module, action, scope in grants:
+        if module in SENSITIVE_MODULES:
+            reasons.add(f"Can {SENSITIVE_MODULES[module]} ({module})")
+        if action in SENSITIVE_ACTIONS:
+            reasons.add(f"Can {SENSITIVE_ACTIONS[action]} ({module})")
+        if action in DECISION_ACTIONS and scope != "ASSIGNED" and scope != "OWN":
+            reasons.add(f"Can decide requests beyond those assigned to them ({module})")
+    return sorted(reasons)
+
+
+def role_sensitivity(role: Role) -> list[str]:
+    return sensitivity_of(
+        (g.permission.module, g.permission.action, g.scope)
+        for g in role.grants.select_related("permission")
+    )
+
+
+def is_sensitive_role(role: Role) -> bool:
+    return bool(role_sensitivity(role))
 
 
 def _forbid(message: str, code: str):
@@ -205,6 +240,16 @@ def set_role_grants(actor, role: Role, grants) -> Role:
         (g.permission.module, g.permission.action): g.scope
         for g in role.grants.select_related("permission")
     }
+    new_reasons = set(sensitivity_of((m, a, sc) for (m, a), sc in cleaned.items()))
+    old_reasons = set(sensitivity_of((m, a, sc) for (m, a), sc in old.items()))
+    if new_reasons - old_reasons and role.user_roles.filter(revoked_at__isnull=True).exists():
+        # Otherwise an administrator could widen a role its holders already have and so
+        # hand them sensitive access without the second person's approval (D-067).
+        _forbid(
+            "This role has people in it, so it cannot gain sensitive access here. Create a "
+            "new role with that access; people can then be given it through an approval.",
+            "approval_required",
+        )
     _write_grants(role, cleaned, actor)
     role.save()  # bumps updated_at
     added = sorted(_cell(m, a, sc) for (m, a), sc in cleaned.items() if (m, a) not in old)
@@ -263,6 +308,27 @@ def assign_role(
 ) -> UserRole:
     if user.pk == actor.pk:
         _forbid("You cannot change your own roles.", "self_escalation")
+    if is_sensitive_role(role):
+        _forbid(
+            "This role gives sensitive access, so a second person must approve it. "
+            "Raise a role-grant request in the Approval Centre instead.",
+            "approval_required",
+        )
+    return _create_assignment(
+        actor, user, role, department=department, valid_from=valid_from, valid_to=valid_to
+    )
+
+
+def _create_assignment(
+    actor,
+    user,
+    role: Role,
+    *,
+    department=None,
+    valid_from: date | None = None,
+    valid_to: date | None = None,
+    extra_metadata=None,
+) -> UserRole:
     if not role.is_active:
         raise ValidationError({"role": ["This role is not active."]})
     if valid_from and valid_to and valid_to < valid_from:
@@ -294,9 +360,47 @@ def assign_role(
             "valid_from": valid_from,
             "valid_to": valid_to,
             "assignment_id": assignment.pk,
+            **(extra_metadata or {}),
         },
     )
     return assignment
+
+
+@transaction.atomic
+def assign_role_approved(
+    requester,
+    approver,
+    user,
+    role: Role,
+    *,
+    request_number: str,
+    department=None,
+    valid_from=None,
+    valid_to=None,
+) -> UserRole:
+    """Create the assignment an approved request asked for. Called only by the Approval Centre.
+
+    Re-checks the rules at the moment of granting, because time has passed since the request.
+    """
+    if user.pk in (requester.pk, approver.pk):
+        _forbid("Nobody can grant or approve a role for themselves.", "self_escalation")
+    if approver.pk == requester.pk:
+        _forbid("The person who asked cannot be the approver.", "self_decision")
+    if not user.is_active:
+        raise ValidationError({"detail": ["The person's account is no longer active."]})
+    return _create_assignment(
+        requester,
+        user,
+        role,
+        department=department,
+        valid_from=valid_from,
+        valid_to=valid_to,
+        extra_metadata={
+            "approval_request": request_number,
+            "approved_by": approver.username,
+            "requested_by": requester.username,
+        },
+    )
 
 
 @transaction.atomic

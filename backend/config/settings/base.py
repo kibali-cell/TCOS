@@ -138,6 +138,10 @@ TCOS_LOGIN_IP_MAX_FAILURES = env.int("TCOS_LOGIN_IP_MAX_FAILURES", default=30)
 # address. Only set above 0 when X-Forwarded-For is added by YOUR proxy.
 TCOS_TRUSTED_PROXY_COUNT = env.int("TCOS_TRUSTED_PROXY_COUNT", default=0)
 
+# Where the server runs, shown in the access review (data sovereignty). Free text, e.g.
+# "Kenya (Nairobi)". Empty means the owner has not decided yet.
+TCOS_HOSTING_REGION = env("TCOS_HOSTING_REGION", default="")
+
 # --- Django REST Framework --------------------------------------------------
 
 REST_FRAMEWORK = {

@@ -22,3 +22,10 @@ class RecordViewSet(ScopedQuerysetMixin, ScopedWriteMixin, viewsets.ModelViewSet
     serializer_class = RecordSerializer
     permission_classes = [RBACPermission]
     rbac_module = "finance"
+
+
+class StoreRecordViewSet(RecordViewSet):
+    """The same records under a NON-sensitive module (stores), so tests can assign roles
+    for it directly. Roles that reach finance data need an approval (D-044)."""
+
+    rbac_module = "stores"

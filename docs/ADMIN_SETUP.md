@@ -53,6 +53,15 @@ Archiving is blocked while people or reporting lines depend on a record; the scr
 
 You can re-create any missing starting departments with `docker compose exec backend python manage.py seed_organisation`. It never changes what you have edited.
 
-## 6. Not covered yet
+## 6. Approvals, sensitive roles and TZS limits (Slice 5)
+
+- **First Executive Director or Board Member.** Sensitive roles need another person's approval, so the first holders must be given from the server console: `python manage.py grant_role_from_console USERNAME EXECUTIVE_DIRECTOR --reason "Initial setup"`. It is audited. Do the same for at least one `BOARD_MEMBER`: the Administrator, Executive Director and Board Member roles can only be approved by a Board Member.
+- **Giving a sensitive role later:** an administrator raises a role-grant request (Approvals, "Grant a sensitive role"); a different person approves it. The roles screen shows which roles are sensitive and why.
+- **Approval routes:** set a chain per department (Organisation, Approval chains). Without one, requests go to the Executive Director.
+- **TZS limits:** open Approvals, Limits. The numbers shown are provisional and **not ratified**. Propose the real ones; an Executive Director or Board Member who did not propose them approves.
+- **Access review:** Administration, Access review. Check it regularly. Set `TCOS_HOSTING_REGION` once the hosting region is decided.
+- **Also see** `docs/DATA_SOVEREIGNTY.md`.
+
+## 7. Not covered yet
 
 User management screens, password reset, two-factor sign-in, device registration and backup procedures arrive in later slices and will be added here.

@@ -337,7 +337,7 @@ def test_saving_an_unchanged_matrix_records_nothing(admin):
 def test_assigning_and_revoking_a_role_names_who_what_and_where(admin, make_user, departments):
     _, client = admin
     target = make_user("target")
-    role = Role.objects.get(code="FINANCE_OFFICER")
+    role = Role.objects.get(code="STOREKEEPER")
 
     response = post(
         client,
@@ -350,11 +350,11 @@ def test_assigning_and_revoking_a_role_names_who_what_and_where(admin, make_user
     )
     assert response.status_code == 201
     assigned = only(response, "ROLE_ASSIGNED")
-    assert assigned.object_id == str(target.pk) and assigned.metadata["role"] == "FINANCE_OFFICER"
+    assert assigned.object_id == str(target.pk) and assigned.metadata["role"] == "STOREKEEPER"
     assert assigned.department_id == departments["A"].pk
 
     revoked = delete(client, f"/api/v1/rbac/users/{target.pk}/roles/{response.json()['id']}/")
-    assert only(revoked, "ROLE_REVOKED").metadata["role"] == "FINANCE_OFFICER"
+    assert only(revoked, "ROLE_REVOKED").metadata["role"] == "STOREKEEPER"
 
 
 def test_refused_changes_write_no_event(admin):

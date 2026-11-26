@@ -132,3 +132,28 @@ class DepartmentListView(_UsersModuleView):
         return Response(
             {"results": [{"id": str(d.id), "code": d.code, "name": d.name} for d in rows]}
         )
+
+
+class AccessReviewView(APIView):
+    """Who can see which sensitive data, and where it is kept. Needs audit.VIEW (everything)."""
+
+    permission_classes = [RBACPermission]
+    rbac_module = "audit"
+    rbac_actions = {"get": "VIEW"}
+
+    def get(self, request):
+        from apps.audit import events as audit_events
+        from apps.audit.service import record as audit
+
+        from .access_review import build_report
+        from .permissions import request_access
+
+        granted = request_access(request).get(("audit", "VIEW"))
+        if not (granted and granted.everything):
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied("You do not have permission to do this.")
+        audit(
+            audit_events.ACCESS_REVIEW_VIEWED, actor=request.user, object_type="rbac.AccessReview"
+        )
+        return Response(build_report())

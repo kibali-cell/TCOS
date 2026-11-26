@@ -3,6 +3,7 @@ from rest_framework import serializers
 from apps.organisation.models import Department
 
 from .models import Role, UserRole
+from .services import role_sensitivity
 
 
 class GrantSerializer(serializers.Serializer):
@@ -35,7 +36,10 @@ def role_summary(role: Role, *, holders: int | None = None) -> dict:
         "description": role.description,
         "is_system": role.is_system,
         "is_active": role.is_active,
+        # Needs a second person's approval to grant (D-044, D-065).
+        "sensitive_reasons": role_sensitivity(role),
     }
+    data["is_sensitive"] = bool(data["sensitive_reasons"])
     if holders is not None:
         data["holders"] = holders
     return data

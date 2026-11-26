@@ -20,7 +20,8 @@ from psycopg import sql
 
 ROLE_NAME = re.compile(r"^[a-z_][a-z0-9_]{2,40}$")
 PASSWORD = re.compile(r"^[A-Za-z0-9]{16,128}$")
-AUDIT_TABLE = "audit_auditevent"
+# Tables the application may only read and add to (never change or remove rows).
+APPEND_ONLY_TABLES = ("audit_auditevent", "approvals_approvalaction")
 
 
 class Command(BaseCommand):
@@ -74,13 +75,17 @@ def apply_roles(role: str, password: str) -> None:
             sql.SQL(
                 "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO {}"
             ).format(ident),
-            # The audit log is insert-and-read only.
-            sql.SQL("REVOKE ALL ON {} FROM {}").format(sql.Identifier(AUDIT_TABLE), ident),
-            sql.SQL("GRANT SELECT, INSERT ON {} TO {}").format(sql.Identifier(AUDIT_TABLE), ident),
             # Only the owner changes the schema or the migration history.
             sql.SQL("REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON django_migrations FROM {}").format(
                 ident
             ),
         ]
+        for table in APPEND_ONLY_TABLES:  # the audit log and approval history: add and read only
+            statements.append(
+                sql.SQL("REVOKE ALL ON {} FROM {}").format(sql.Identifier(table), ident)
+            )
+            statements.append(
+                sql.SQL("GRANT SELECT, INSERT ON {} TO {}").format(sql.Identifier(table), ident)
+            )
         for statement in statements:
             cursor.execute(statement)

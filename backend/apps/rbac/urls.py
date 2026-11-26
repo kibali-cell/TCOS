@@ -13,5 +13,6 @@ urlpatterns = [
         views.UserRoleDetailView.as_view(),
         name="rbac-user-role",
     ),
+    path("access-review/", views.AccessReviewView.as_view(), name="rbac-access-review"),
     path("departments/", views.DepartmentListView.as_view(), name="rbac-departments"),
 ]

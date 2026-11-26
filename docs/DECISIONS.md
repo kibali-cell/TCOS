@@ -244,3 +244,36 @@ Still open in `docs/SCHEMA.md` section 9: approval hierarchy tables (stored in S
 Also: ratify the TZS tiers (D-020) before Slice 11, and confirm the builder's choices in D-022.
 
 Needed before: Slice 5 (approval chains, requester policy), Slice 11 (TZS ratification), and before deployment (hosting region, data protection review).
+
+
+---
+
+## Slice 5: Approval Centre (decisions D-065 to D-071)
+
+### D-065 What a "sensitive" role is, and how it is granted (owner principle 3, builds D-044)
+A role is **sensitive** if it can reach child, welfare, medical, financial or staff personal data, the audit log, users and roles, or the organisation settings; or if it carries Manage Users, Delete or Export; or if it can approve or reject beyond requests assigned to the holder. The rule is in code (`apps/rbac/constants.py`), not in a setting, so nobody can quietly redefine it, and the roles screen shows why each role is sensitive.
+Granting a sensitive role is **only** possible through an approval request (`ROLE_GRANT`). The server refuses the direct route. Rules enforced in `apps/approvals/services.py`:
+- the requester must hold Manage Users, and cannot ask for a role for themselves;
+- the person receiving the role can never approve it, and neither can the requester;
+- the approver is an Executive Director or Board Member; **Administrator, Executive Director and Board Member roles need a Board Member**;
+- the approver re-enters their password (high risk, D-H4);
+- on approval the role is granted in the same transaction, audited with the request number.
+An Administrator can therefore ask for a sensitive role for someone else but cannot make it happen alone.
+
+### D-066 TZS limits are explicit, versioned and approved configuration (owner principle 2, builds D-020)
+The limits live in a table (`approvals_tzslimitpolicy`), one version in force at a time, all versions kept. Version 1 is the provisional proposal in D-020 and is shown as **not ratified**. A change is proposed on screen, becomes a `TZS_LIMITS_CHANGE` request, and only takes effect when an Executive Director or Board Member who did not propose it approves it; that approval records who ratified it and when. The risk level of every request is set by the server from the amount and kind; clients cannot set it. HIGH requests need the approver's password again. **Still needed from the owner:** ratify the numbers (a real decision, not a click-through), and say who approves what by amount (SCHEMA 9.7); this slice records risk but does not yet route by amount.
+
+### D-067 Role edits cannot be used to sneak around D-065
+A role that has people in it cannot gain sensitive access through the matrix editor. Create a new role with that access; people can then be given it through an approval. Without this, an Administrator could widen a role its holders already have.
+
+### D-068 Multi-step approval, taken from the Slice 4 chains; no approver, no self-approval (closes SCHEMA 9.3, 9.4, 9.6)
+Requests follow the department's approval chain for their type, falling back to the department's DEFAULT chain (the Slice 4 tables are used as they are; no second set of workflow tables). The route is frozen when the request is submitted. If nobody other than the requester can approve a step, it **escalates** to the Executive Director, then the Board Member, and the history says so. If still nobody, submission is refused with a plain message; it is never approved by the requester. With no chain at all, the request goes to the Executive Director and says so. Anyone who is an approver must also hold the Approve permission. System request types have a fixed route and never escalate.
+
+### D-069 The approval history cannot be changed, and the database refuses self-approval
+`approvals_approvalaction` is append-only in the application, by a trigger (UPDATE, DELETE, TRUNCATE refused for every role) and by the restricted `tcos_app` role (SELECT and INSERT only). A second trigger refuses a review, approval or rejection whose actor is the request's requester. Each step writes the history row, notifications and audit event in one transaction.
+
+### D-070 Data sovereignty: where data lives and who can see it (owner principle 1)
+`docs/DATA_SOVEREIGNTY.md` says where each kind of data is stored. The **Access review** screen (Administration, needs Audit View) is built live from the permission tables: for each kind of sensitive data, the people who can reach it and through which role; the sensitive roles and their holders; and what the application cannot protect (database operators, backups). Viewing it is audited. The hosting region is shown as **not decided** until the owner sets `TCOS_HOSTING_REGION`. Notifications are in-app only; no mail is sent because no mail server is configured.
+
+### D-071 One deliberate exception: granting a role from the server console
+The first Executive Director or Board Member cannot be approved by people who do not exist yet. `manage.py grant_role_from_console USERNAME ROLE --reason "..."` does it. It needs the server itself, demands a written reason and is audited. Whoever can run it can also read the database, so it belongs to the institution's server operator, not to a day-to-day Administrator.
