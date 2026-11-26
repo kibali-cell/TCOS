@@ -47,8 +47,25 @@ services:
       TCOS_APP_DB_USER: ${TCOS_APP_DB_USER:-tcos_app}
       TCOS_APP_DB_PASSWORD: ${TCOS_APP_DB_PASSWORD:?Set TCOS_APP_DB_PASSWORD in .env}
       TCOS_HOSTING_REGION: ${TCOS_HOSTING_REGION:-}
+      # Slice 7: encryption key for two-factor secrets (empty is allowed only in development,
+      # where a key is derived from the secret key), link base for reset e-mails, e-mail
+      # delivery, and the private file store.
+      TCOS_ENCRYPTION_KEY: ${TCOS_ENCRYPTION_KEY:-}
+      TCOS_PUBLIC_URL: ${TCOS_PUBLIC_URL:-http://localhost:5173}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-true}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-TCOS <no-reply@localhost>}
+      TCOS_PRIVATE_STORAGE_ROOT: /var/lib/tcos/private-files
+      TCOS_CLAMAV_HOST: ${TCOS_CLAMAV_HOST:-}
+      TCOS_REQUIRE_VIRUS_SCAN: ${TCOS_REQUIRE_VIRUS_SCAN:-false}
     volumes:
       - ./backend:/app
+      # Uploaded files live here, outside the code folder and outside anything served publicly.
+      - tcos_private_files:/var/lib/tcos/private-files
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -83,4 +100,5 @@ services:
 
 volumes:
   tcos_pgdata:
+  tcos_private_files:
   tcos_frontend_node_modules:

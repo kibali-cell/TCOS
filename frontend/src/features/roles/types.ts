@@ -11,6 +11,7 @@ export interface RoleSummary {
   description: string
   is_system: boolean
   is_active: boolean
+  requires_two_factor?: boolean
   holders?: number
 }
 

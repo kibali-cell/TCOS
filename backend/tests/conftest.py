@@ -15,6 +15,12 @@ def fast_password_hasher(settings):
     settings.PASSWORD_HASHERS = [FAST_HASHER]
 
 
+@pytest.fixture(autouse=True)
+def private_storage(settings, tmp_path):
+    """Every test gets its own empty private file store."""
+    settings.TCOS_PRIVATE_STORAGE_ROOT = str(tmp_path / "private_files")
+
+
 @pytest.fixture
 def make_user(db):
     counter = itertools.count(1)

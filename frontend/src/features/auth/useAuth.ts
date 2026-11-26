@@ -25,12 +25,23 @@ export interface RoleSummary {
   department: string | null
 }
 
+export interface TwoFactorStatus {
+  enabled: boolean
+  required: boolean
+  setup_required: boolean
+  recovery_codes_left: number
+}
+
 export interface AuthPayload {
   user: User
   session: SessionInfo
   permissions: Permissions
   roles: RoleSummary[]
+  two_factor?: TwoFactorStatus
 }
+
+/** What the sign-in form should do next. */
+export type SignInResult = 'signed-in' | 'two-factor'
 
 export type AuthState =
   | { status: 'loading' }
@@ -42,11 +53,13 @@ export type AuthState =
       session: SessionInfo
       permissions: Permissions
       roles: RoleSummary[]
+      twoFactor: TwoFactorStatus
     }
 
 export interface AuthContextValue {
   state: AuthState
-  signIn: (username: string, password: string) => Promise<void>
+  signIn: (username: string, password: string) => Promise<SignInResult>
+  completeTwoFactor: (code: string, recovery: boolean) => Promise<void>
   signOut: () => Promise<void>
   refresh: () => Promise<void>
 }

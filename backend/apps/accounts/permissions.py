@@ -17,4 +17,10 @@ class IsSignedIn(BasePermission):
             return False
         if user.must_change_password and not getattr(view, "allow_password_change_pending", False):
             return False
+        if not getattr(view, "allow_password_change_pending", False):
+            from . import twofactor
+
+            if twofactor.setup_blocked(user):
+                self.message = "Set up two-factor sign-in before continuing."
+                return False
         return True

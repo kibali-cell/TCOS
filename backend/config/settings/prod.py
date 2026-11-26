@@ -17,6 +17,12 @@ if len(SECRET_KEY) < 50:
         "DJANGO_SECRET_KEY must be set to a random value of at least 50 characters."
     )
 
+if len(TCOS_ENCRYPTION_KEY) < 43:  # noqa: F405
+    raise ImproperlyConfigured(
+        "TCOS_ENCRYPTION_KEY must be set (32 random bytes, URL-safe base64). It encrypts "
+        "two-factor secrets; see docs/ADMIN_SETUP.md."
+    )
+
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[])
 if not ALLOWED_HOSTS:
     raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must list the public host name(s).")

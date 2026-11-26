@@ -46,6 +46,8 @@ class Role(models.Model):
     description = models.CharField(max_length=300, blank=True)
     is_system = models.BooleanField(default=False)  # seeded roles cannot be deleted
     is_active = models.BooleanField(default=True)
+    # Everyone holding this role must sign in with a second factor (Slice 7).
+    requires_two_factor = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.ForeignKey(

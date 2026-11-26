@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { ApiError, api, setUnauthorizedHandler } from '../../lib/api'
-import { AuthContext, type AuthPayload, type AuthState } from './useAuth'
+import { AuthContext, type AuthPayload, type AuthState, type SignInResult } from './useAuth'
 
 function signedIn(payload: AuthPayload): AuthState {
   return {
@@ -10,6 +10,12 @@ function signedIn(payload: AuthPayload): AuthState {
     session: payload.session,
     permissions: payload.permissions ?? {},
     roles: payload.roles ?? [],
+    twoFactor: payload.two_factor ?? {
+      enabled: false,
+      required: false,
+      setup_required: false,
+      recovery_codes_left: 0,
+    },
   }
 }
 
@@ -63,10 +69,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null)
   }, [])
 
-  const signIn = useCallback(async (username: string, password: string) => {
-    const payload = await api<AuthPayload>('/auth/login/', {
+  const signIn = useCallback(async (username: string, password: string): Promise<SignInResult> => {
+    const payload = await api<AuthPayload | { two_factor_required: true }>('/auth/login/', {
       method: 'POST',
       body: { username, password },
+    })
+    if ('two_factor_required' in payload) return 'two-factor'
+    setState(signedIn(payload))
+    return 'signed-in'
+  }, [])
+
+  const completeTwoFactor = useCallback(async (code: string, recovery: boolean) => {
+    const payload = await api<AuthPayload>('/auth/login/2fa/', {
+      method: 'POST',
+      body: { code, recovery },
     })
     setState(signedIn(payload))
   }, [])
@@ -81,8 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ state, signIn, signOut, refresh }),
-    [state, signIn, signOut, refresh],
+    () => ({ state, signIn, completeTwoFactor, signOut, refresh }),
+    [state, signIn, completeTwoFactor, signOut, refresh],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

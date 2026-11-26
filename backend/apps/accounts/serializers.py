@@ -43,3 +43,26 @@ class UserSessionSerializer(serializers.ModelSerializer):
 
     def get_is_current(self, obj) -> bool:
         return obj.session_key == self.context.get("current_session_key")
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    identifier = serializers.CharField(max_length=254)
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=200)
+    new_password = serializers.CharField(max_length=256, trim_whitespace=False)
+
+
+class TwoFactorLoginSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=40)
+    recovery = serializers.BooleanField(required=False, default=False)
+
+
+class CodeSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=40)
+
+
+class ReauthSerializer(serializers.Serializer):
+    password = serializers.CharField(max_length=256, trim_whitespace=False)
+    code = serializers.CharField(max_length=40)

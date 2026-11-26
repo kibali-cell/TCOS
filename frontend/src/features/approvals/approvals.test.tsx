@@ -42,6 +42,8 @@ function request(overrides: Partial<RequestDetail> = {}): RequestDetail {
     created_at: '2026-11-20T03:00:00Z',
     can: NO_ABILITIES,
     description: 'Term 1',
+    attachments: [],
+    can_attach_files: false,
     decision_comment: '',
     payload: { kind: '', kind_label: '' },
     version: 2,

@@ -272,6 +272,12 @@ class RBACPermission(BasePermission):
         if user.must_change_password:
             self.message = "You must change your password before continuing."
             return False
+        if not getattr(view, "allow_password_change_pending", False):
+            from apps.accounts import twofactor
+
+            if twofactor.setup_blocked(user):
+                self.message = "Set up two-factor sign-in before continuing."
+                return False
         module = getattr(view, "rbac_module", None)
         action = required_action(view, request)
         if not module or not action:

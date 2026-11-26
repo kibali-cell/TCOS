@@ -294,3 +294,33 @@ Institution-wide figures appear only for people holding the module's View permis
 
 ### D-075 Department dashboard access
 A person may open a department dashboard for their own department, or any department if they hold Administration or Approvals View at All scope, or one inside a department-limited View grant. Anything else looks the same as a missing department (404). Recent activity appears only to people who may view the audit log, within their scope. Printing uses a print stylesheet: menu and controls hidden, tables printed as tables.
+
+## Slice 7: Password reset, two-factor sign-in, document uploads (decisions D-076 to D-084)
+
+### D-076 Password reset by e-mail link only; no password is ever set or seen by an administrator
+Reset requests are answered identically whether or not the account exists, and are rate limited per account and per IP address (counted for unknown names too, so the limit cannot be used to find accounts). The link carries a 256-bit random token stored only as a SHA-256 hash, valid for 60 minutes, single use; asking again voids older links. The token is placed in the URL **fragment** (`/reset-password#token=...`), which browsers send neither to the server nor in Referer headers, and the page removes it from the address bar after reading it. A completed reset ends every session of that person and is audited; a refused one is audited too. This **replaces** the Slice 6 temporary-password reset for existing accounts (the endpoint is removed): an administrator can now only press "Send a password reset link", which goes to the e-mail on record. That closes the D-072 gap for sensitive accounts as well. The one-time temporary password given when an account is **created** remains (see D-077).
+
+### D-077 Sensitive access cannot be attached to an account that still has a temporary password; sensitive-role holders cannot have their e-mail changed
+Whoever creates an account sees its temporary password once. Until the person has replaced it, that person could be impersonated, so a sensitive role cannot be granted (directly, by approved request or from the console) to an account whose `must_change_password` is still true. Ordinary roles can be granted at once. Because the reset link goes to the e-mail on record, the e-mail of a sensitive-role holder cannot be edited by an administrator (otherwise redirecting it would be a takeover route). Known limit: an administrator can still change the e-mail of ordinary accounts, and sees the one-time temporary password at creation.
+
+### D-078 Two-factor: TOTP (RFC 6238), optional per person, can be required per role
+SHA-1, 6 digits, 30-second steps, one step of drift allowed; the secret is shown once as a QR code and as a typed key. It is stored **encrypted** (AES-256-GCM, key from `TCOS_ENCRYPTION_KEY`, each value bound to the user it belongs to so it cannot be copied to another account). Turning it on needs a correct code; recovery codes (10, shown once) are stored only as hashes and each works once. A used code step cannot be replayed. Turning it off, or renewing recovery codes, needs the password **and** a current code. An administrator may mark a role as requiring two-factor (Roles screen); holders must then set it up before the server lets them use anything except their account page (enforced in the API, not just the screen) and cannot switch it off.
+
+### D-079 Two-factor sign-in shares the password lockout and never counts as success early
+A correct password with two-factor pending creates only a short-lived (5 minute) "password checked" state in the session, no working session, and is **not** recorded as a successful sign-in (otherwise a guessed password would reset the failure count between code guesses). Wrong codes count as failed attempts toward the same 5-failure lockout; both are audited. Recovery-code use is audited.
+
+### D-080 Lost phone: administrator reset for ordinary accounts, server console for sensitive ones
+An administrator holding Manage Users may remove a person's two-factor from their page (audited, with a reason). For anyone holding a sensitive role this is refused, because removing a second factor is a step toward taking over the account; the server operator does it with `python manage.py reset_two_factor <username>`. Known limit: an administrator can still remove two-factor from an ordinary account whose password they do not know, which only returns that account to password-only sign-in.
+
+### D-081 Uploaded files: private store, random names, checks by content, access decided by the record
+Files are written under `TCOS_PRIVATE_STORAGE_ROOT` (default outside the code folder; a Docker named volume), mode 600, under a random 32-hex key; the uploaded name is kept only as display text and never used in a path. Allowed types and the size limit are settings (default pdf, png, jpg, jpeg, docx, xlsx, txt; 10 MB). The type must match both the extension and the first bytes (an executable renamed `.pdf` is refused; Office files must be valid archives of sane size); the browser's claimed type is ignored. A SHA-256 is recorded and checked on every download (a changed file is refused and the failure audited). Downloads go only through `/api/v1/documents/<id>/download/`, are always sent as attachments with `nosniff`, `no-store` and a locked-down Content-Security-Policy, and are allowed only to someone who may see the parent record; otherwise the answer is the same 404 as for a file that does not exist. Files are archived, never deleted; the application's database role cannot delete rows from the document table.
+
+### D-082 Attachments on approval requests
+The requester may attach files (up to 10) while the request is a draft or open, and may remove them only while it is still a draft: once submitted, the files are part of what approvers saw. Anyone who can see the request can list and download its files. Default classification is CONFIDENTIAL; CHILD_SENSITIVE is not allowed on approval requests. Other modules register their own rules when they exist (Phase Two).
+
+### D-083 Virus scanning is a hook, not a scanner
+No scanner ships with this release. Every file is recorded `NOT_SCANNED` and the screen says so, unless `TCOS_CLAMAV_HOST` points to a ClamAV daemon, in which case an infected file is refused. `TCOS_REQUIRE_VIRUS_SCAN=true` refuses all uploads when scanning is not available. The ClamAV client follows the clamd protocol but **has not been run against a real ClamAV**.
+
+### D-084 Document uploads are online-only; nothing is queued offline
+Consistent with D-H1 and CLAUDE.md rule 13: no file content is held in browser storage, and the upload screen reports a connection failure instead of queueing. Offline attachment is a later decision.
+

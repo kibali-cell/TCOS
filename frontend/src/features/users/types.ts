@@ -12,6 +12,7 @@ export interface UserRow {
   last_login: string | null
   must_change_password: boolean
   two_factor_required?: boolean
+  two_factor?: { enabled: boolean; required: boolean; setup_required: boolean }
 }
 
 export const STATUS_LABELS: Record<string, string> = {

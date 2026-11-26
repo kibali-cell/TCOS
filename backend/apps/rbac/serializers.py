@@ -16,6 +16,7 @@ class RoleWriteSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=100, required=False)
     description = serializers.CharField(max_length=300, required=False, allow_blank=True)
     is_active = serializers.BooleanField(required=False)
+    requires_two_factor = serializers.BooleanField(required=False)
 
 
 class RoleCreateSerializer(serializers.Serializer):
@@ -36,6 +37,7 @@ def role_summary(role: Role, *, holders: int | None = None) -> dict:
         "description": role.description,
         "is_system": role.is_system,
         "is_active": role.is_active,
+        "requires_two_factor": role.requires_two_factor,
         # Needs a second person's approval to grant (D-044, D-065).
         "sensitive_reasons": role_sensitivity(role),
     }

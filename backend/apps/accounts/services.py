@@ -35,6 +35,8 @@ from .models import LoginAttempt, User, UserSession, normalise_email, normalise_
 logger = logging.getLogger(__name__)
 
 THROTTLED = "THROTTLED"
+NEEDS_2FA = "NEEDS_2FA"  # password was right; the second step is still to come
+PENDING_2FA_SECONDS = 5 * 60
 SEEN_UPDATE_SECONDS = 60
 
 
@@ -198,7 +200,9 @@ def is_blocked(username: str, user: User | None, ip: str | None) -> bool:
     """
     now = timezone.now()
     window_start = now - timedelta(minutes=settings.TCOS_LOGIN_WINDOW_MINUTES)
-    failures = LoginAttempt.objects.filter(success=False).exclude(failure_reason=THROTTLED)
+    failures = LoginAttempt.objects.filter(success=False).exclude(
+        failure_reason__in=[THROTTLED, NEEDS_2FA]
+    )
 
     cutoff = window_start
     if user is not None and user.lockout_reset_at:
@@ -221,8 +225,13 @@ def is_blocked(username: str, user: User | None, ip: str | None) -> bool:
     )
 
 
-def sign_in(request, username: str, password: str) -> User:
-    """Validate credentials, record the attempt and start a session."""
+def sign_in(request, username: str, password: str) -> User | None:
+    """Validate credentials. Starts the session, or returns None when a second step is needed.
+
+    With two-factor on, a correct password only opens a short "waiting for the code" state in
+    the (still anonymous) session; the person is not signed in until the code is checked in
+    :func:`complete_two_factor`.
+    """
     name = normalise_username(username)[:150]
     user = User.objects.filter(username=name).first()
     ip = get_client_ip(request)
@@ -239,10 +248,48 @@ def sign_in(request, username: str, password: str) -> User:
         _record_attempt(request, name, user, False, reason)
         raise InvalidCredentials()
 
+    from . import twofactor
+
+    if twofactor.is_enabled(authenticated):
+        # Not a success yet: a success would reset the failure count and let someone who knows
+        # the password try codes without limit.
+        _record_attempt(request, name, authenticated, False, NEEDS_2FA)
+        request.session.flush()
+        request.session["pending_2fa"] = {"uid": str(authenticated.pk), "at": int(time.time())}
+        return None
+
     with transaction.atomic():
         _record_attempt(request, name, authenticated, True)
         _start_session(request, authenticated)
     return authenticated
+
+
+def complete_two_factor(request, code: str, *, recovery: bool = False) -> User:
+    """Second step of sign-in. Wrong codes count towards the same lockout as wrong passwords."""
+    from . import twofactor
+
+    pending = request.session.get("pending_2fa") or {}
+    user = User.objects.filter(pk=pending.get("uid")).first() if pending.get("uid") else None
+    if (
+        user is None
+        or not user.is_active
+        or time.time() - pending.get("at", 0) > PENDING_2FA_SECONDS
+    ):
+        request.session.pop("pending_2fa", None)
+        raise InvalidCredentials("Start again: enter your username and password.")
+    ip = get_client_ip(request)
+    if is_blocked(user.username, user, ip):
+        _record_attempt(request, user.username, user, False, THROTTLED)
+        raise TooManyAttempts()
+
+    ok = twofactor.check_recovery_code(user, code) if recovery else twofactor.check_code(user, code)
+    if not ok:
+        _record_attempt(request, user.username, user, False, "BAD_2FA")
+        raise InvalidCredentials("That code is not right.")
+    with transaction.atomic():
+        _record_attempt(request, user.username, user, True)
+        _start_session(request, user)
+    return user
 
 
 def _start_session(request, user: User) -> UserSession:
@@ -453,6 +500,17 @@ def update_user(actor: User, user: User, **fields) -> User:
     if unknown:
         raise ApiValidationError({"detail": [f"Cannot change: {', '.join(sorted(unknown))}."]})
     before = _profile(user)
+    if (
+        "email" in fields
+        and normalise_email(fields["email"]) != user.email
+        and _holds_sensitive_role(user)
+    ):
+        # A reset link goes to the e-mail on record, so changing it would let whoever changes
+        # it take over the account (D-076).
+        raise PermissionDenied(
+            "This person holds a sensitive role, so their e-mail address cannot be changed here.",
+            "sensitive_email",
+        )
     for name, value in fields.items():
         setattr(user, name, value)
     user.email = normalise_email(user.email)
@@ -568,45 +626,6 @@ def _holds_sensitive_role(user: User) -> bool:
         if (row.valid_to is None or row.valid_to >= today)
     ]
     return any(rbac_services.role_sensitivity(role) for role in roles)
-
-
-@transaction.atomic
-def admin_reset_password(actor: User, user: User) -> str:
-    """Set a new random temporary password; ends the person's sessions. Returns it once.
-
-    Refused for yourself, and for anyone who holds a sensitive role: whoever sees a
-    temporary password could sign in as that person, which would get around the second-person
-    approval needed to hold that role (D-072). Slice 7 replaces this with an e-mailed link.
-    """
-    if user.pk == actor.pk:
-        raise PermissionDenied("Use Change password on your own account.", "self_reset")
-    if _holds_sensitive_role(user):
-        raise PermissionDenied(
-            "This person holds a sensitive role, so a password cannot be set for them here. "
-            "Password reset by e-mail arrives in a later release.",
-            "sensitive_account",
-        )
-    temporary = generate_temporary_password()
-    try:
-        password_validation.validate_password(temporary, user)
-    except DjangoValidationError as exc:  # practically impossible for a random value
-        raise ApiValidationError({"detail": list(exc.messages)}) from exc
-    user.set_password(temporary)
-    user.must_change_password = True
-    user.password_changed_at = timezone.now()
-    user.save(
-        update_fields=["password", "must_change_password", "password_changed_at", "updated_at"]
-    )
-    audit(
-        audit_events.USER_PASSWORD_RESET,
-        actor=actor,
-        object_type="accounts.User",
-        object_id=user.pk,
-        department_id=user.department_id,
-        metadata={"sessions_ended": True},
-    )
-    end_all_sessions(user, UserSession.EndReason.PASSWORD_CHANGED, actor=actor)
-    return temporary
 
 
 @transaction.atomic

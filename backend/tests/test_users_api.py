@@ -182,30 +182,30 @@ def test_unlock_clears_a_lockout(staff, make_user, new_client, settings):
     assert AuditEvent.objects.filter(event_type=events.USER_UNLOCKED).exists()
 
 
-def test_temporary_password_reset_rules(staff, make_user, new_client):
+def test_admin_sends_a_reset_link_and_never_sees_a_password(
+    staff, make_user, new_client, mailoutbox, django_capture_on_commit_callbacks
+):
     me, admin = staff("ADMINISTRATOR")
-    plain = make_user("plain")
-    give_role(plain, "STOREKEEPER")  # not sensitive
+    plain = make_user("plain", email="plain@example.org")
     browser = new_client()
     sign_in(browser, "plain")
-    response = post(admin, uurl(plain, "temporary-password"), {})
+    with django_capture_on_commit_callbacks(execute=True):
+        response = post(admin, uurl(plain, "send-reset-link"), {})
     assert response.status_code == 200
-    temporary = response.json()["temporary_password"]
-    assert not UserSession.objects.filter(user=plain, ended_at__isnull=True).exists()
-    assert sign_in(new_client(), "plain", temporary).status_code == 200
-    assert temporary not in str(list(AuditEvent.objects.values_list("changes", "metadata")))
-    # Not for yourself, and never for someone holding a sensitive role.
-    assert post(admin, uurl(me, "temporary-password"), {}).status_code == 403
-    boss = make_user("boss")
-    give_role(boss, "EXECUTIVE_DIRECTOR")
-    refused = post(admin, uurl(boss, "temporary-password"), {})
-    assert refused.status_code == 403
-    assert refused.json()["error"]["code"] == "sensitive_account"
-    assert not User.objects.get(pk=boss.pk).must_change_password
-    # A finance officer is sensitive too (financial data).
-    cashier = make_user("cashier")
-    give_role(cashier, "FINANCE_OFFICER")
-    assert post(admin, uurl(cashier, "temporary-password"), {}).status_code == 403
+    assert "password" not in str(response.json()).lower().replace("reset link", "")
+    assert [m.to for m in mailoutbox] == [["plain@example.org"]]
+    assert "/reset-password#token=" in mailoutbox[0].body
+    event = AuditEvent.objects.filter(event_type=events.PASSWORD_RESET_LINK_SENT).get()
+    assert event.actor_id == me.pk
+    # The token never reaches the audit log.
+    token = mailoutbox[0].body.split("#token=")[1].split()[0]
+    assert token not in str(list(AuditEvent.objects.values_list("changes", "metadata")))
+    # Not for yourself; and the old endpoint that returned a temporary password is gone.
+    assert post(admin, uurl(me, "send-reset-link"), {}).status_code == 403
+    assert post(admin, uurl(plain, "temporary-password"), {}).status_code == 404
+    # Without MANAGE_USERS nothing is sent.
+    _, hr = staff("HR_OFFICER", username="hr1")
+    assert post(hr, uurl(plain, "send-reset-link"), {}).status_code == 403
 
 
 def test_department_scope_limits_who_is_listed(staff, make_user, departments):

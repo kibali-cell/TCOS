@@ -37,6 +37,8 @@ const summary = {
 const detail = {
   ...summary,
   description: LONG,
+  attachments: [],
+  can_attach_files: false,
   decision_comment: '',
   payload: { kind: '', kind_label: '' },
   version: 2,

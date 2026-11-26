@@ -1,3 +1,5 @@
+import type { DocumentInfo } from '../../components/FileUpload'
+
 export interface Abilities {
   edit: boolean
   submit: boolean
@@ -52,6 +54,8 @@ export interface HistoryEntry {
 }
 
 export interface RequestDetail extends RequestSummary {
+  attachments: DocumentInfo[]
+  can_attach_files: boolean
   description: string
   decision_comment: string
   payload: Record<string, unknown>

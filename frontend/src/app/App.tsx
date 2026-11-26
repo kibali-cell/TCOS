@@ -13,7 +13,9 @@ import { NewRequestPage } from '../features/approvals/NewRequestPage'
 import { RequestDetailPage } from '../features/approvals/RequestDetailPage'
 import { RoleGrantPage } from '../features/approvals/RoleGrantPage'
 import { AuditLogPage } from '../features/audit/AuditLogPage'
+import { ForgotPasswordPage } from '../features/auth/ForgotPasswordPage'
 import { LoginPage } from '../features/auth/LoginPage'
+import { ResetPasswordPage } from '../features/auth/ResetPasswordPage'
 import { RequireAuth } from '../features/auth/RequireAuth'
 import { RequirePermission } from '../features/auth/RequirePermission'
 import { RolesPage } from '../features/roles/RolesPage'
@@ -24,6 +26,8 @@ export function App() {
   return (
     <Routes>
       <Route path="login" element={<LoginPage />} />
+      <Route path="forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="reset-password" element={<ResetPasswordPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />

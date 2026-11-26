@@ -457,3 +457,13 @@ id, occurred_at, user_id, device_id, direction (`PULL`, `PUSH`), applied_count, 
 ## 10. What this schema deliberately does not include yet
 
 Children, education, medical, finance, projects, HR records, procurement, stores, donors, reports. These arrive in later phases as separate apps. The `permission` table, generic document attachments, `related_content_type` links on requests, the `audit` hook and the sync policy registry and change log (section 8A) are the extension points that let them plug in without restructuring. A later module is not complete until it has declared a sync policy.
+
+## 10. As built in Slice 7 (differences from the drafts above)
+
+- `totp_device` was built as **`accounts_twofactor`**: one per user, `secret_encrypted` (AES-256-GCM, `v1:` prefix, context `2fa:<user id>`), `confirmed_at` (null until enrolment is confirmed), `last_used_step` (replay protection).
+- `recovery_code` built as **`accounts_recoverycode`**: `code_hash` (SHA-256 of the normalised code), `used_at`.
+- `password_reset_token` built as **`accounts_passwordresettoken`**: `token_hash` unique, `expires_at`, `used_at`, `requested_by` (null for self-service, the administrator for an administrator-sent link). Never stores the token.
+- New **`accounts_passwordresetrequest`**: one row per request (`identifier_hash` of the typed name, `ip_address`, `sent`, `requested_at`) used only for rate limiting.
+- `rbac_role.requires_two_factor` (boolean, default false).
+- **`core_document`**: `id` (UUID), `parent_type` ("app.Model"), `parent_id`, `original_name`, `content_type`, `size_bytes`, `sha256`, `storage_key` (unique, random 32 hex), `classification` (NORMAL / CONFIDENTIAL / CHILD_SENSITIVE), `scan_status` (NOT_SCANNED / CLEAN), `uploaded_by`, `uploaded_at`, `is_archived`, `archived_at`, `archived_by`, `version`. No sync policy: online-only. `DELETE` and `TRUNCATE` are revoked from the application database role.
+

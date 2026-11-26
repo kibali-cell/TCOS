@@ -2,7 +2,7 @@
 
 Honest completion status. Categories: **Done and tested**, **Done but untested**, **Partial**, **Not done**.
 
-Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline design is documents only.
+Last updated: Slice 7 built and tested (awaiting review). Hybrid and offline design is mostly documents only.
 
 ## Slice 0: Project foundation
 
@@ -144,7 +144,7 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | Create user, edit details | Done and tested | One-time temporary password, must change at first sign-in |
 | Deactivate and reactivate, clear sign-in lockout | Done and tested | Ends sessions at once; last Administrator and yourself protected |
 | Give and remove roles on the user page | Done and tested | Sensitive roles point to the Approval Centre (D-065) |
-| Temporary password reset | Done and tested | Refused for yourself and for sensitive-role holders (D-072) |
+| Temporary password reset | Replaced in Slice 7 | Now "send a reset link" to the e-mail on record (D-076) |
 | Department assignment | Done, in Organisation | Follows the main post (D-056); shown on the user page, changed in Organisation |
 | Dashboard: figures, approvals, finance, notifications, activity | Done and tested | Permission-gated at the API; every figure labelled (D-074) |
 | Reference figures 85 / 42 / 43 / 15 | Done and tested | Unverified, labelled; employees go live from staff assignments |
@@ -154,13 +154,35 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | Responsive at 360, 768, 1280 px | Done and tested | Dashboard, users, user page, department dashboard |
 | Verifying a reference figure | Not started | Owner to decide who may do it |
 | Bulk import of users, user photos | Not started | Not requested |
-| Reset by e-mail, 2FA, uploads | Not started | Slice 7 |
+| Reset by e-mail, 2FA, uploads | Done in Slice 7 | See below |
+
+## Slice 7: Password reset, two-factor, document uploads
+
+| Item | Status | Notes |
+|---|---|---|
+| Forgot and reset password pages, e-mail link | Done and tested | Single-use hashed 60-minute token in the URL fragment; same answer for unknown accounts; rate limited; ends all sessions; audited |
+| Real e-mail delivery (SMTP) | **Done but untested** | Console and in-memory backends tested; SMTP settings documented, never run against a mail server |
+| Administrator "send reset link" | Done and tested | Goes only to the e-mail on record; admin never sees a password (D-076) |
+| Two-factor (TOTP) enrol with QR, confirm, sign-in step | Done and tested | Secrets encrypted; replay protection; shares the lockout (D-078, D-079) |
+| Recovery codes | Done and tested | Hashed, one use each, renewable |
+| Disable two-factor | Done and tested | Needs password and code; not allowed when the role requires it |
+| Require two-factor per role | Done and tested | Enforced by the API; Roles screen toggle |
+| Lost phone | Done and tested | Administrator reset for ordinary accounts; console command for sensitive ones (D-080) |
+| Real authenticator app / camera scan | Done but untested | Codes verified against the standard algorithm only |
+| Private file storage, upload, download, archive | Done and tested | Random names, content checks, SHA-256, authenticated permission-checked download, audited (D-081) |
+| Attachments on approval requests | Done and tested | Requester adds while open, removes only in draft (D-082) |
+| Virus scanning | **Partial** | Hook and clearly marked stub; files show "not virus-scanned". ClamAV client untested (D-083) |
+| Files encrypted at rest | Not done | Use host disk encryption; see DATA_SOVEREIGNTY.md |
+| Offline attachment | Not started | Uploads are online-only (D-084) |
+| Docker volume for files | Done but untested | No Docker daemon available |
+| Responsive at 360, 768, 1280 px | Done and tested | New pages and attachment list |
 
 ## Known limitations
 
 - Roles and permissions exist, but no real record types exist yet beyond users, organisation, approvals and the audit log, so permissions decide mainly navigation, user and role management, approvals and audit.
 - Sessions: an idle session expires on the server after 30 minutes but the page only notices on its next request.
 - The institutional figures (85 / 42 / 43 / 15) appear on the dashboard only as labelled, unverified reference figures (D-074).
+- Slice 7: an administrator sees the one-time temporary password when creating an account, and can change the e-mail of ordinary accounts (D-077). The reset-confirm endpoint is not separately rate limited. Files are not encrypted by the application.
 - Unknown API URLs return Django's default HTML 404 rather than the JSON error envelope.
 - The test database was a throwaway local PostgreSQL 16 cluster, not the Docker `postgres:16` image.
 
@@ -175,7 +197,7 @@ Last updated: Slice 4 built and tested (awaiting review). Hybrid and offline des
 | 4 Organisation structure | **Done, awaiting review** |
 | 5 Approval Centre | Done, awaiting your review |
 | 6 Dashboard, user management, responsive polish | Done, awaiting your review |
-| 7 Password reset, 2FA, document uploads | Not started |
+| 7 Password reset, 2FA, document uploads | Done, awaiting your review |
 | 8 Device registry, enrolment, revocation | Not started (design written) |
 | 9 Synchronisation server | Not started (design written) |
 | 10 Offline client (encrypted local store, sync engine, lock) | Not started (design written) |

@@ -8,8 +8,9 @@ urlpatterns = [
     path("<uuid:pk>/status/", views.UserStatusView.as_view(), name="user-status"),
     path("<uuid:pk>/unlock/", views.UserUnlockView.as_view(), name="user-unlock"),
     path(
-        "<uuid:pk>/temporary-password/",
-        views.UserTemporaryPasswordView.as_view(),
-        name="user-temporary-password",
+        "<uuid:pk>/send-reset-link/", views.UserSendResetLinkView.as_view(), name="user-reset-link"
+    ),
+    path(
+        "<uuid:pk>/reset-two-factor/", views.UserResetTwoFactorView.as_view(), name="user-reset-2fa"
     ),
 ]

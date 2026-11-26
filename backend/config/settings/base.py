@@ -142,6 +142,50 @@ TCOS_TRUSTED_PROXY_COUNT = env.int("TCOS_TRUSTED_PROXY_COUNT", default=0)
 # "Kenya (Nairobi)". Empty means the owner has not decided yet.
 TCOS_HOSTING_REGION = env("TCOS_HOSTING_REGION", default="")
 
+# --- E-mail (Slice 7) -----------------------------------------------------------
+# Development prints e-mails to the console. Production must set EMAIL_BACKEND to the SMTP
+# backend and the EMAIL_* values (docs/ADMIN_SETUP.md). Nothing secret has a default.
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+EMAIL_TIMEOUT = 10
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="TCOS <no-reply@localhost>")
+# Public address of the application, used in links inside e-mails.
+TCOS_PUBLIC_URL = env("TCOS_PUBLIC_URL", default="http://localhost:5173")
+
+# --- Password reset ----------------------------------------------------------------
+TCOS_RESET_TOKEN_MINUTES = env.int("TCOS_RESET_TOKEN_MINUTES", default=60)
+# Requests that actually send a link, per account and per IP address, in one hour.
+TCOS_RESET_MAX_PER_ACCOUNT_HOUR = env.int("TCOS_RESET_MAX_PER_ACCOUNT_HOUR", default=3)
+TCOS_RESET_MAX_PER_IP_HOUR = env.int("TCOS_RESET_MAX_PER_IP_HOUR", default=20)
+
+# --- Two-factor sign-in ---------------------------------------------------------------
+TCOS_2FA_ISSUER = env("TCOS_2FA_ISSUER", default="TCOS Tuleeni")
+# Key that encrypts two-factor secrets in the database (32 random bytes, URL-safe base64).
+# Generate with: openssl rand -base64 32 | tr '+/' '-_'
+# Development and tests derive one from SECRET_KEY when this is empty; production refuses to.
+TCOS_ENCRYPTION_KEY = env("TCOS_ENCRYPTION_KEY", default="")
+
+# --- Private document storage (Slice 7) ---------------------------------------------------
+# Outside any static or public path. Files are named by random keys, never by user input.
+# An empty value must never mean "the current folder", so empty falls back to the default.
+TCOS_PRIVATE_STORAGE_ROOT = env("TCOS_PRIVATE_STORAGE_ROOT", default="") or str(
+    BASE_DIR / "private_files"
+)
+TCOS_UPLOAD_MAX_BYTES = env.int("TCOS_UPLOAD_MAX_BYTES", default=10 * 1024 * 1024)
+TCOS_UPLOAD_ALLOWED_TYPES = env.list(
+    "TCOS_UPLOAD_ALLOWED_TYPES", default=["pdf", "png", "jpg", "jpeg", "docx", "xlsx", "txt"]
+)
+# When true, an upload is refused unless a virus scanner is configured and says it is clean.
+TCOS_REQUIRE_VIRUS_SCAN = env.bool("TCOS_REQUIRE_VIRUS_SCAN", default=False)
+TCOS_CLAMAV_HOST = env("TCOS_CLAMAV_HOST", default="")
+TCOS_CLAMAV_PORT = env.int("TCOS_CLAMAV_PORT", default=3310)
+DATA_UPLOAD_MAX_MEMORY_SIZE = TCOS_UPLOAD_MAX_BYTES + 1024 * 1024
+
 # --- Django REST Framework --------------------------------------------------
 
 REST_FRAMEWORK = {

@@ -4,6 +4,7 @@ import { useAuth, useCurrentUser } from '../auth/useAuth'
 import { formatDateTime } from '../../lib/format'
 import { ChangePasswordForm } from './ChangePasswordForm'
 import { SessionsPanel } from './SessionsPanel'
+import { TwoFactorPanel } from './TwoFactorPanel'
 
 export function AccountPage() {
   const user = useCurrentUser()
@@ -56,6 +57,7 @@ export function AccountPage() {
           setReloadKey((value) => value + 1)
         }}
       />
+      <TwoFactorPanel />
       <SessionsPanel reloadKey={reloadKey} />
     </>
   )

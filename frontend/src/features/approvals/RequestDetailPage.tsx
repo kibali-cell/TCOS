@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { FileAttachments } from '../../components/FileAttachments'
 import { api } from '../../lib/api'
 import { formatDateTime } from '../../lib/format'
 import { describeError } from './describeError'
@@ -127,6 +128,14 @@ export function RequestDetailPage() {
           <strong>Decision note:</strong> {request.decision_comment}
         </p>
       )}
+
+      <FileAttachments
+        parentType="approvals.ApprovalRequest"
+        parentId={request.id}
+        files={request.attachments}
+        canAttach={request.can_attach_files}
+        onChange={load}
+      />
 
       {request.route.length > 0 && (
         <>

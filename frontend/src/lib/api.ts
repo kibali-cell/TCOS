@@ -167,3 +167,82 @@ export async function apiDownload(
   const match = /filename="?([^";]+)"?/.exec(disposition)
   return { blob: await response.blob(), filename: match?.[1] ?? 'audit-log.csv' }
 }
+
+function envelopeError(status: number, text: string): ApiError {
+  let payload: { error?: Record<string, unknown> } | null = null
+  try {
+    payload = JSON.parse(text) as { error?: Record<string, unknown> }
+  } catch {
+    payload = null
+  }
+  const envelope = payload?.error
+  return new ApiError(
+    status,
+    typeof envelope?.code === 'string' ? envelope.code : 'error',
+    typeof envelope?.message === 'string' ? envelope.message : 'The request failed.',
+    envelope?.details ?? null,
+  )
+}
+
+/**
+ * Upload a file as multipart form data, reporting progress (0 to 1).
+ * Uses XMLHttpRequest because fetch cannot report upload progress.
+ */
+export async function apiUpload<T = unknown>(
+  path: string,
+  fields: Record<string, string>,
+  file: File,
+  onProgress?: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<T> {
+  const token = await ensureCsrfCookie()
+  return new Promise<T>((resolve, reject) => {
+    const form = new FormData()
+    for (const [key, value] of Object.entries(fields)) form.append(key, value)
+    form.append('file', file)
+    const request = new XMLHttpRequest()
+    request.open('POST', `${API_PREFIX}${path}`)
+    request.setRequestHeader('Accept', 'application/json')
+    request.setRequestHeader(CSRF_HEADER, token)
+    request.withCredentials = true
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded / event.total)
+    }
+    request.onload = () => {
+      if (request.status >= 200 && request.status < 300) {
+        try {
+          resolve(JSON.parse(request.responseText) as T)
+        } catch {
+          reject(new ApiError(request.status, 'error', 'The server sent an unreadable answer.'))
+        }
+        return
+      }
+      if (request.status === 401) unauthorizedHandler?.()
+      reject(envelopeError(request.status, request.responseText))
+    }
+    request.onerror = () => reject(new ApiError(0, 'network_error', 'Could not reach the server.'))
+    request.onabort = () => reject(new DOMException('Aborted', 'AbortError'))
+    signal?.addEventListener('abort', () => request.abort())
+    request.send(form)
+  })
+}
+
+/** GET a file the user is allowed to download. The server decides; nothing is cached here. */
+export async function apiFile(path: string): Promise<{ blob: Blob; filename: string }> {
+  let response: Response
+  try {
+    response = await fetch(`${API_PREFIX}${path}`, { credentials: 'same-origin' })
+  } catch {
+    throw new ApiError(0, 'network_error', 'Could not reach the server.')
+  }
+  if (!response.ok) {
+    if (response.status === 401) unauthorizedHandler?.()
+    throw envelopeError(response.status, await response.text())
+  }
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition)
+  return {
+    blob: await response.blob(),
+    filename: match?.[1] ? decodeURIComponent(match[1]) : 'download',
+  }
+}

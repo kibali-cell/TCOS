@@ -130,8 +130,17 @@ def request_summary(request, viewer) -> dict:
 
 
 def request_detail(request, viewer) -> dict:
+    from apps.core import documents
+
     data = request_summary(request, viewer)
     data.update(
+        can_attach_files=documents.PARENTS["approvals.ApprovalRequest"].can_attach(
+            viewer, request.pk
+        ),
+        attachments=[
+            documents.payload(d, viewer)
+            for d in documents.list_for(viewer, "approvals.ApprovalRequest", request.pk)
+        ],
         description=request.description,
         decision_comment=request.decision_comment,
         payload=_payload(request),

@@ -80,7 +80,12 @@ def _cell(module: str, action: str, scope: str) -> str:
 
 
 def _role_fields(role: Role) -> dict:
-    return {"name": role.name, "description": role.description, "is_active": role.is_active}
+    return {
+        "name": role.name,
+        "description": role.description,
+        "is_active": role.is_active,
+        "requires_two_factor": role.requires_two_factor,
+    }
 
 
 # --- Roles ---------------------------------------------------------------------------
@@ -155,7 +160,9 @@ def create_role(actor, *, name: str, description: str = "", grants=()) -> Role:
 
 
 @transaction.atomic
-def update_role(actor, role: Role, *, name=None, description=None, is_active=None) -> Role:
+def update_role(
+    actor, role: Role, *, name=None, description=None, is_active=None, requires_two_factor=None
+) -> Role:
     if holds_role(actor, role):
         _forbid("You cannot change a role that you hold yourself.", "self_escalation")
     before = _role_fields(role)
@@ -172,6 +179,8 @@ def update_role(actor, role: Role, *, name=None, description=None, is_active=Non
         if role.code == ADMINISTRATOR_ROLE and not is_active:
             raise ValidationError({"is_active": ["The Administrator role cannot be deactivated."]})
         role.is_active = is_active
+    if requires_two_factor is not None:
+        role.requires_two_factor = requires_two_factor
     role.save()
     after = _role_fields(role)
     changes = {k: {"from": before[k], "to": after[k]} for k in after if before[k] != after[k]}
@@ -331,6 +340,14 @@ def _create_assignment(
 ) -> UserRole:
     if not role.is_active:
         raise ValidationError({"role": ["This role is not active."]})
+    if user.must_change_password and is_sensitive_role(role):
+        # Whoever created the account knows its temporary password. Until the person has
+        # replaced it, no sensitive access may be attached to it (D-077).
+        _forbid(
+            "This person has not yet set their own password. Sensitive access can be granted "
+            "after they have signed in and changed it.",
+            "password_not_set",
+        )
     if valid_from and valid_to and valid_to < valid_from:
         raise ValidationError({"valid_to": ["The end date cannot be before the start date."]})
     if department is not None and not department.is_active:

@@ -131,6 +131,21 @@ export function RolesPage() {
       return value ? 'Role activated.' : 'Role deactivated. Its holders lose its permissions now.'
     })
 
+  const setRequireTwoFactor = (value: boolean) =>
+    run(async () => {
+      const role = await api<RoleDetail>(`/rbac/roles/${selected!.id}/`, {
+        method: 'PATCH',
+        body: { requires_two_factor: value },
+      })
+      setSelected((current) =>
+        current ? { ...current, requires_two_factor: role.requires_two_factor } : role,
+      )
+      await reloadRoles()
+      return value
+        ? 'Holders of this role must now use two-factor sign-in.'
+        : 'Two-factor is no longer required for this role.'
+    })
+
   const createRole = (event: FormEvent) => {
     event.preventDefault()
     return run(async () => {
@@ -296,6 +311,20 @@ export function RolesPage() {
                   </div>
                 )}
               </form>
+
+              {canManage && (
+                <div className="field">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={selected.requires_two_factor ?? false}
+                      disabled={busy}
+                      onChange={(event) => void setRequireTwoFactor(event.target.checked)}
+                    />{' '}
+                    Require two-factor sign-in for everyone holding this role
+                  </label>
+                </div>
+              )}
 
               <h3>What this role allows</h3>
               <p className="muted small">

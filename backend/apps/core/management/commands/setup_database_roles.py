@@ -22,6 +22,8 @@ ROLE_NAME = re.compile(r"^[a-z_][a-z0-9_]{2,40}$")
 PASSWORD = re.compile(r"^[A-Za-z0-9]{16,128}$")
 # Tables the application may only read and add to (never change or remove rows).
 APPEND_ONLY_TABLES = ("audit_auditevent", "approvals_approvalaction")
+# Rows that may be changed (archived) but never deleted by the running application.
+NO_DELETE_TABLES = ("core_document",)
 
 
 class Command(BaseCommand):
@@ -86,6 +88,12 @@ def apply_roles(role: str, password: str) -> None:
             )
             statements.append(
                 sql.SQL("GRANT SELECT, INSERT ON {} TO {}").format(sql.Identifier(table), ident)
+            )
+        for table in NO_DELETE_TABLES:
+            statements.append(
+                sql.SQL("REVOKE DELETE, TRUNCATE ON {} FROM {}").format(
+                    sql.Identifier(table), ident
+                )
             )
         for statement in statements:
             cursor.execute(statement)

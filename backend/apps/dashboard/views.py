@@ -19,6 +19,11 @@ class DashboardPermission(RBACPermission):
         if user.must_change_password:
             self.message = "You must change your password before continuing."
             return False
+        from apps.accounts import twofactor
+
+        if twofactor.setup_blocked(user):
+            self.message = "Set up two-factor sign-in before continuing."
+            return False
         return True
 
 

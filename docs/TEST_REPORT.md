@@ -427,3 +427,50 @@ On a fresh database, with the server role `tcos_app`: an Executive Director reco
 | A real printer or PDF export | Print layout checked only through Chrome's print emulation |
 | The screens against the real server in a browser | Browser tests use mocked API responses; the API was exercised by backend tests |
 | Real devices | Not available |
+
+## Slice 7: Password reset, two-factor, document uploads
+
+**Environment:** as Slice 5 (throwaway local PostgreSQL 16, Chrome via Playwright).
+
+| Check | Command | Result |
+|---|---|---|
+| Lint and format | `ruff check`, `ruff format --check`, `oxlint`, `tsc -b`, `prettier --check` | Passed (Prettier reports `SystemStatus.tsx`, which is not changed in this slice; see Slice 6 note) |
+| Backend tests | `pytest --create-db` | 689 passed (68 new) |
+| Frontend unit tests | `npx vitest run` | 127 passed (22 new) |
+| Browser tests | `npx playwright test` | 66 passed (15 new: 5 screens at 360, 768, 1280 px) |
+| Production build | `npm run build` | Succeeds |
+| Pending migrations | `makemigrations --check --dry-run` | None |
+| Reverse and re-apply Slice 7 migrations (accounts, core, rbac) | `manage.py migrate <app> 0002`, then `migrate` | Passed |
+| Live check as restricted role `tcos_app`, real HTTP server, scratch database | scripted, 41 checks | 41 of 41 passed |
+
+### What the tests cover
+
+Password reset: identical answers for real and unknown accounts; e-mail as identifier; inactive accounts get nothing; token stored hashed and absent from the audit log; single use; expiry; garbage token gives the same answer as an expired one; weak password refused and link stays usable; a newer request voids older links; reset ends every session; per-account and per-IP rate limits (unknown names counted too); CSRF required; failed attempts audited; administrator-sent link goes only to the e-mail on record and never reveals a password; the old temporary-password endpoint is gone.
+Two-factor: enrolment (QR, encrypted secret, nothing on until confirmed), recovery codes hashed and shown once, password-only sign-in does not give a session, replayed code refused, recovery code once only, wrong codes lock the account and a correct code cannot get in while locked, the password step alone is not counted as a success, disable and renew need password and code, required-by-role enforced in the API and cannot be switched off, administrator reset allowed for ordinary and refused for sensitive accounts, secret does not decrypt for another user or when altered.
+Documents: private storage with random names and mode 600; download returns the exact bytes with attachment, nosniff and no-store; access follows the request's visibility (draft private to requester, visible to approvers after submission); anonymous and outsiders get the same 404 as a missing file; only the requester can attach and only while open, remove only while draft; blocked accounts refused; disallowed types, double extensions, wrong content (fake PDF, PNG called JPG, non-archive called DOCX, binary text), browser-declared type ignored; size limit and file-count limit; configurable types; classification checked; path traversal in names; storage keys cannot be built from anything but 32 hex; URL guessing and direct paths fail; tampered file refused and audited; missing file is a clean 404; archive hides but keeps the file; infected file refused, scanning-required refuses when unavailable; no orphan file after a database failure; unknown parent types look like missing; upload needs CSRF.
+Guards: sensitive role refused for an account with a temporary password, allowed after the change; production refuses to start without or with a short `TCOS_ENCRYPTION_KEY`.
+Frontend: two-factor sign-in step (code, recovery code, wrong code, expired first step), required set-up redirect, enrolment walk-through, disable with re-authentication, forgot and reset pages (token read from the address fragment and removed, mismatch refused, bad link, missing token), upload component (CSRF header, progress, server refusal with retry, offline message, nothing stored in browser storage), attachment list (download through the endpoint, refusal shown, remove, hidden when not allowed), administrator user page sends a link and offers 2FA reset only when enabled. Browser: forgot, reset, second step, 2FA set-up and attachments (long file name) fit at 360, 768 and 1280 px with touch targets of at least 44 px.
+
+### Live check against PostgreSQL as the restricted role
+
+A real server ran as `tcos_app` against a fresh database. Checked over HTTP: reset link read from the console e-mail, same answer for unknown names, old session dead after reset, link single-use; 2FA enrolment, second step, replay refused, recovery code once, lockout after wrong codes and administrator unlock; upload, byte-exact download with attachment and nosniff headers, a second user in another department refused with 404, anonymous refused, `.exe` and fake `.pdf` refused, 11 MB refused, traversal name stored under a random hex name inside the store, guessed `/media`, `/static` and key URLs return 404, attachments appear in the request detail without storage keys, audit shows upload, download, refusal, 2FA and reset events and contains no token, secret or recovery code, archive then download gives 404. The database role was confirmed unable to DELETE from `core_document`.
+
+### Problems found during the slice
+
+- A refused attempt was not audited because the audit row was written inside the transaction that the refusal then rolled back (failed reset link, failed 2FA disable). Found by tests; the audit is now written outside the rolled-back block.
+- The new account endpoints had to be added to the permission-coverage test lists (public or signed-in-only by design).
+- An empty `TCOS_PRIVATE_STORAGE_ROOT` in `.env` would have meant the current folder; it now falls back to the default.
+- Slice 6's tests and screen for temporary passwords were replaced by the send-link flow.
+
+### Not run, and why
+
+| Not run | Why |
+|---|---|
+| Real SMTP e-mail | No mail server available; only the console and in-memory backends were exercised |
+| A real ClamAV scanner | None available; the clamd client is untested and the stub path (NOT_SCANNED) is what ran |
+| Real authenticator app and phone camera | Codes were generated with the same RFC 6238 algorithm in the tests; no phone scanned a QR |
+| Docker stack and the new volume | No Docker daemon available |
+| Confirm-reset endpoint rate limit | Not separately limited (token is 256-bit random); only the request endpoint is limited |
+| The screens against the real server in a browser | Browser tests use mocked API responses |
+| Real devices | Not available |
+

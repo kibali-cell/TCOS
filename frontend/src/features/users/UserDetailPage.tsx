@@ -23,7 +23,6 @@ export function UserDetailPage() {
   const [roles, setRoles] = useState<RoleOption[]>([])
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const [temporary, setTemporary] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({ full_name: '', email: '', phone: '' })
   const [roleId, setRoleId] = useState('')
@@ -74,22 +73,18 @@ export function UserDetailPage() {
     )
   }
 
-  async function resetPassword() {
-    setTemporary(null)
-    setBusy(true)
-    setError(null)
-    setMessage(null)
-    try {
-      const result = await api<{ temporary_password: string }>(`/users/${id}/temporary-password/`, {
-        method: 'POST',
-        body: {},
-      })
-      setTemporary(result.temporary_password)
-    } catch (e) {
-      setError(describeError(e))
-    } finally {
-      setBusy(false)
-    }
+  function sendResetLink() {
+    void run(
+      () => api(`/users/${id}/send-reset-link/`, { method: 'POST', body: {} }),
+      `A reset link has been sent to ${user?.email ?? 'the e-mail address on record'}.`,
+    )
+  }
+
+  function resetTwoFactor() {
+    void run(
+      () => api(`/users/${id}/reset-two-factor/`, { method: 'POST', body: { reason } }),
+      'Two-factor sign-in has been removed. The person sets it up again at next sign-in if it is required.',
+    )
   }
 
   if (!user) {
@@ -128,12 +123,6 @@ export function UserDetailPage() {
         <p role="status" className="notice">
           {message}
         </p>
-      )}
-      {temporary && (
-        <div className="notice" role="status">
-          Temporary password (shown only now, to be given privately; they must change it at first
-          sign-in): <code className="mono">{temporary}</code>
-        </div>
       )}
 
       <div className="card">
@@ -288,18 +277,19 @@ export function UserDetailPage() {
             >
               Clear sign-in lockout
             </button>
-            <button
-              type="button"
-              className="button"
-              disabled={busy}
-              onClick={() => void resetPassword()}
-            >
-              Set a temporary password
+            <button type="button" className="button" disabled={busy} onClick={sendResetLink}>
+              Send a password reset link
             </button>
+            {user.two_factor?.enabled && (
+              <button type="button" className="button" disabled={busy} onClick={resetTwoFactor}>
+                Reset two-factor sign-in
+              </button>
+            )}
           </div>
           <p className="muted small">
-            Accounts are never deleted. A temporary password cannot be set for yourself or for
-            anyone holding a sensitive role.
+            Accounts are never deleted. The reset link goes only to the e-mail address on record;
+            nobody else ever sees the new password. Two-factor can be reset here for ordinary
+            accounts (lost phone); for sensitive roles it needs the server console.
           </p>
         </div>
       )}

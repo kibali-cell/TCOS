@@ -72,6 +72,32 @@ You can re-create any missing starting departments with `docker compose exec bac
 - **Dashboard numbers:** figures marked "Reference figure (not yet verified)" are the starting figures from the institution (85 children, 42 residential, 43 outreach, 15 employees), not counted from records. Employees become a live count once staff posts are entered.
 - **Printing:** use the Print button on the users list, the dashboard and the department dashboard.
 
-## 8. Not covered yet
+## 8. Password reset, two-factor and files (Slice 7)
 
-User management screens, password reset, two-factor sign-in, device registration and backup procedures arrive in later slices and will be added here.
+**Keys and addresses in `.env`.** Production will not start without `TCOS_ENCRYPTION_KEY` (generate: `python -c "import os,base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"`). Store a copy safely, apart from database backups: if it is lost, everyone must set two-factor up again. Set `TCOS_PUBLIC_URL` to the address people open (for example `https://tcos.example.org`), because it is used in the reset e-mail links.
+
+**E-mail.** Development prints e-mails in the server console (`docker compose logs backend`), which is how you read a reset link while testing. For real e-mail set these in `.env` (values come from your e-mail provider):
+
+```
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.example.org
+EMAIL_PORT=587
+EMAIL_HOST_USER=...
+EMAIL_HOST_PASSWORD=...
+EMAIL_USE_TLS=true
+DEFAULT_FROM_EMAIL=TCOS <no-reply@example.org>
+```
+
+Reset e-mails are sent in the background; a failure to send is written to the server log without the address or link. Real SMTP delivery has **not** been tested.
+
+**Forgotten password.** People use "Forgot your password?" on the sign-in page. An administrator can press **Send a password reset link** on a person's page. Nobody, including administrators, can set or see another person's new password.
+
+**Two-factor.** People turn it on under **My account**. To **require** it for a role, open Administration, Roles, choose the role and tick "Require two-factor sign-in". Holders must set it up before they can use anything else. **Lost phone:** an administrator can press **Reset two-factor sign-in** on the person's page. For people holding a sensitive role this is refused; the server operator runs `docker compose exec backend python manage.py reset_two_factor <username>`.
+
+**Files.** Allowed types and size: `TCOS_UPLOAD_ALLOWED_TYPES`, `TCOS_UPLOAD_MAX_BYTES` (default 10 MB). The store is the Docker volume `tcos_private_files` (outside the code folder, never served by the web server): **back it up together with the database.** Virus scanning is off unless `TCOS_CLAMAV_HOST` points to a ClamAV daemon; the screen shows "not virus-scanned" on files until then.
+
+**New accounts.** The one-time temporary password shown when you create an account must be given privately. A sensitive role cannot be granted to an account until the person has signed in and replaced that password (D-077).
+
+## 9. Not covered yet
+
+Device registration and backup procedures arrive in later slices and will be added here.

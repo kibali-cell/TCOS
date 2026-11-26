@@ -36,3 +36,8 @@ The region where the database runs is **an open owner decision** (SCHEMA section
 - Backups must be encrypted and kept to the same standard as the live database. No backup procedure is built yet.
 
 Keep the database owner password and server access with the institution, not with one individual (CLAUDE.md section 1).
+
+## Uploaded files (Slice 7)
+
+Uploaded files are **not** in the database. They are stored on the server's disk in the private file store (`TCOS_PRIVATE_STORAGE_ROOT`; in Docker the named volume `tcos_private_files`), so they live wherever the server lives (hosting region: not yet decided). They are not encrypted at rest by the application: protect them with disk encryption on the host, and **include the volume in backups** (a database backup alone does not contain them). Files are served only to signed-in people allowed to see the record they belong to, and every upload and download is audited. Two-factor secrets are encrypted in the database with `TCOS_ENCRYPTION_KEY`; keep that key separately from database backups.
+

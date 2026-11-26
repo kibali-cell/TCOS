@@ -18,7 +18,7 @@ from apps.organisation.models import StaffAssignment
 from apps.rbac.models import UserRole
 from apps.rbac.permissions import RBACPermission, filter_queryset, request_access
 
-from . import services
+from . import recovery, services, twofactor
 from .models import User
 
 SORT_FIELDS = {
@@ -163,7 +163,7 @@ class UserDetailView(_UserView):
     def get(self, request, pk):
         user = self.target(request, pk, "VIEW")
         body = _row(user, _live_roles([user.pk]), _main_positions([user.pk]))
-        body["two_factor_required"] = user.two_factor_required
+        body["two_factor"] = twofactor.status_payload(user)
         return Response(body)
 
     def patch(self, request, pk):
@@ -192,8 +192,18 @@ class UserUnlockView(_UserView):
         return Response(_row(user, _live_roles([user.pk]), _main_positions([user.pk])))
 
 
-class UserTemporaryPasswordView(_UserView):
+class UserSendResetLinkView(_UserView):
+    """E-mail the person a link to choose their own password. Nobody else sees a password."""
+
     def post(self, request, pk):
         user = self.target(request, pk, "MANAGE_USERS")
-        temporary = services.admin_reset_password(request.user, user)
-        return Response({"temporary_password": temporary})
+        recovery.admin_send_link(request.user, user)
+        return Response({"detail": f"A reset link has been sent to {user.email}."})
+
+
+class UserResetTwoFactorView(_UserView):
+    def post(self, request, pk):
+        user = self.target(request, pk, "MANAGE_USERS")
+        reason = str(request.data.get("reason", ""))[:300]
+        twofactor.reset_for(request.user, user, reason)
+        return Response(_row(user, _live_roles([user.pk]), _main_positions([user.pk])))

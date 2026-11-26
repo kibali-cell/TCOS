@@ -169,3 +169,79 @@ class UserSession(models.Model):
 
     def __str__(self):
         return f"{self.device_label or 'Device'} ({self.user_id})"
+
+
+class PasswordResetRequest(models.Model):
+    """Every request for a reset link, whether or not the account exists.
+
+    Used only to throttle. The identifier is stored as a hash so this table is not a list of
+    who asked.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    identifier_hash = models.CharField(max_length=64, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    sent = models.BooleanField(default=False)
+    requested_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["ip_address", "requested_at"], name="reset_req_ip_idx")]
+
+    def __str__(self):
+        return f"reset request {self.requested_at}"
+
+
+class PasswordResetToken(models.Model):
+    """A single-use reset link. Only the SHA-256 of the token is stored; the token itself
+    exists only in the e-mail that was sent."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reset_tokens")
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    # Set when an administrator asked for the link; the administrator never sees the token.
+    requested_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        indexes = [models.Index(fields=["user", "used_at"], name="reset_token_user_idx")]
+
+    def __str__(self):
+        return f"reset token for {self.user_id}"
+
+
+class TwoFactor(models.Model):
+    """A person's authenticator-app enrolment. The secret is stored encrypted."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="two_factor")
+    secret_encrypted = models.TextField()
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    # Highest time step already accepted, so a code cannot be used twice.
+    last_used_step = models.BigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"two-factor for {self.user_id}"
+
+    @property
+    def is_enabled(self) -> bool:
+        return self.confirmed_at is not None
+
+
+class RecoveryCode(models.Model):
+    """One single-use recovery code; only its hash is kept."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="recovery_codes")
+    code_hash = models.CharField(max_length=64)
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["user", "code_hash"], name="recovery_user_hash_idx")]
+
+    def __str__(self):
+        return f"recovery code for {self.user_id}"

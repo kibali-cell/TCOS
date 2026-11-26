@@ -104,21 +104,39 @@ describe('users', () => {
     expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ username: 'new.person' })
   })
 
-  it('refuses a temporary password for a sensitive account and says why', async () => {
-    mockApi({
+  it('sends a reset link instead of showing any password', async () => {
+    const { calls } = mockApi({
       'GET /auth/me/': MANAGER,
       'GET /health/': HEALTH,
       'GET /approvals/summary/': SUMMARY,
       'GET /users/u1/': { body: row() },
       'GET /rbac/roles/': { body: { results: [] } },
-      'POST /users/u1/temporary-password/': apiError(
+      'POST /users/u1/send-reset-link/': { body: { detail: 'A reset link has been sent.' } },
+    })
+    renderAt('/administration/users/u1')
+    expect(screen.queryByRole('button', { name: /temporary password/i })).not.toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('button', { name: 'Send a password reset link' }))
+    expect(await screen.findByRole('status')).toHaveTextContent(/alice@example.org/)
+    expect(calls.some((c) => c.path === '/users/u1/send-reset-link/')).toBe(true)
+  })
+
+  it('offers to reset two-factor only when it is on, and shows a refusal', async () => {
+    mockApi({
+      'GET /auth/me/': MANAGER,
+      'GET /health/': HEALTH,
+      'GET /approvals/summary/': SUMMARY,
+      'GET /users/u1/': {
+        body: row({ two_factor: { enabled: true, required: false, setup_required: false } }),
+      },
+      'GET /rbac/roles/': { body: { results: [] } },
+      'POST /users/u1/reset-two-factor/': apiError(
         403,
         'sensitive_account',
-        'This person holds a sensitive role, so a password cannot be set for them here.',
+        'This person holds a sensitive role, so this can only be done from the server console.',
       ),
     })
     renderAt('/administration/users/u1')
-    await userEvent.click(await screen.findByRole('button', { name: 'Set a temporary password' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Reset two-factor sign-in' }))
     expect(await screen.findByRole('alert')).toHaveTextContent(/sensitive role/)
   })
 

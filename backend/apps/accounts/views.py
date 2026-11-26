@@ -12,12 +12,17 @@ from rest_framework.views import APIView
 from apps.rbac.models import UserRole
 from apps.rbac.permissions import effective_permissions, permissions_payload
 
-from . import services
+from . import recovery, services, twofactor
 from .models import UserSession
 from .permissions import IsSignedIn
 from .serializers import (
+    CodeSerializer,
+    ForgotPasswordSerializer,
     LoginSerializer,
     PasswordChangeSerializer,
+    ReauthSerializer,
+    ResetPasswordSerializer,
+    TwoFactorLoginSerializer,
     UserProfileSerializer,
     UserSessionSerializer,
 )
@@ -62,6 +67,7 @@ def _auth_payload(request) -> dict:
         # The frontend uses these to decide what to show. The server still checks every call.
         "permissions": permissions_payload(effective_permissions(user)),
         "roles": _roles_payload(user),
+        "two_factor": twofactor.status_payload(user),
     }
 
 
@@ -75,12 +81,96 @@ class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        services.sign_in(
+        user = services.sign_in(
             request,
             serializer.validated_data["username"],
             serializer.validated_data["password"],
         )
+        if user is None:
+            # Password right, second step still needed. Nothing about the account is revealed.
+            return Response({"two_factor_required": True})
         return Response(_auth_payload(request))
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class LoginTwoFactorView(APIView):
+    authentication_classes: list = []
+    permission_classes = [AllowAny]  # the pending state in the session is the credential
+
+    def post(self, request):
+        data = TwoFactorLoginSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        services.complete_two_factor(
+            request, data.validated_data["code"], recovery=data.validated_data["recovery"]
+        )
+        return Response(_auth_payload(request))
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class ForgotPasswordView(APIView):
+    authentication_classes: list = []
+    permission_classes = [AllowAny]  # public by definition; answers identically for any input
+
+    def post(self, request):
+        data = ForgotPasswordSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        recovery.request_reset(request, data.validated_data["identifier"])
+        return Response(
+            {"detail": recovery.GENERIC_REQUEST_MESSAGE}, status=status.HTTP_202_ACCEPTED
+        )
+
+
+@method_decorator(csrf_protect, name="dispatch")
+class ResetPasswordView(APIView):
+    authentication_classes: list = []
+    permission_classes = [AllowAny]  # the single-use token is the credential
+
+    def post(self, request):
+        data = ResetPasswordSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        recovery.confirm_reset(
+            request, data.validated_data["token"], data.validated_data["new_password"]
+        )
+        return Response({"detail": "Your password has been changed. You can sign in now."})
+
+
+class _TwoFactorView(APIView):
+    permission_classes = [IsSignedIn]
+    allow_password_change_pending = True  # reachable while two-factor set-up is required
+
+
+class TwoFactorStatusView(_TwoFactorView):
+    def get(self, request):
+        return Response(twofactor.status_payload(request.user))
+
+
+class TwoFactorEnrolView(_TwoFactorView):
+    def post(self, request):
+        return Response(twofactor.begin_enrolment(request.user))
+
+
+class TwoFactorConfirmView(_TwoFactorView):
+    def post(self, request):
+        data = CodeSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        codes = twofactor.confirm_enrolment(request.user, data.validated_data["code"])
+        return Response({"recovery_codes": codes})  # shown once
+
+
+class TwoFactorDisableView(_TwoFactorView):
+    def post(self, request):
+        data = ReauthSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        twofactor.disable(request.user, **data.validated_data)
+        return Response(twofactor.status_payload(request.user))
+
+
+class TwoFactorRecoveryCodesView(_TwoFactorView):
+    def post(self, request):
+        data = ReauthSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        codes = twofactor.renew_recovery_codes(request.user, **data.validated_data)
+        return Response({"recovery_codes": codes})
 
 
 class LogoutView(APIView):

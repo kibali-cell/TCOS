@@ -11,6 +11,11 @@ EXPLICITLY_OPEN = {
     "apps.core.views.HealthView",
     "apps.core.views.CsrfView",
     "apps.accounts.views.LoginView",
+    # Slice 7: public by definition; the pending-2FA session state / single-use token is the
+    # credential, and every one of them is throttled and audited.
+    "apps.accounts.views.LoginTwoFactorView",
+    "apps.accounts.views.ForgotPasswordView",
+    "apps.accounts.views.ResetPasswordView",
 }
 SIGNED_IN_ONLY = {  # IsSignedIn: the user's own account, no module permission applies
     "apps.accounts.views.LogoutView",
@@ -19,6 +24,11 @@ SIGNED_IN_ONLY = {  # IsSignedIn: the user's own account, no module permission a
     "apps.accounts.views.EndOtherSessionsView",
     "apps.accounts.views.SessionDetailView",
     "apps.accounts.views.PasswordChangeView",
+    "apps.accounts.views.TwoFactorStatusView",
+    "apps.accounts.views.TwoFactorEnrolView",
+    "apps.accounts.views.TwoFactorConfirmView",
+    "apps.accounts.views.TwoFactorDisableView",
+    "apps.accounts.views.TwoFactorRecoveryCodesView",
 }
 
 

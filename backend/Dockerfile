@@ -12,7 +12,10 @@ COPY requirements.txt requirements-dev.txt ./
 RUN pip install --no-cache-dir -r ${REQUIREMENTS}
 
 # Run as an unprivileged user.
-RUN useradd --create-home --uid 10001 tcos
+RUN useradd --create-home --uid 10001 tcos \
+    && mkdir -p /var/lib/tcos/private-files \
+    && chown -R tcos:tcos /var/lib/tcos \
+    && chmod 700 /var/lib/tcos/private-files
 COPY --chown=tcos:tcos . .
 USER tcos
 

@@ -33,6 +33,7 @@ def _prod_env():
         "DJANGO_SECRET_KEY": secrets.token_urlsafe(64),
         "DJANGO_ALLOWED_HOSTS": "tcos.example.org",
         "DATABASE_URL": "postgres://user:pass@localhost:5432/db",
+        "TCOS_ENCRYPTION_KEY": secrets.token_urlsafe(32),
     }
 
 

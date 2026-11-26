@@ -32,7 +32,8 @@ export function RequireAuth() {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
-  if (state.user.must_change_password && location.pathname !== '/account') {
+  const mustAct = state.user.must_change_password || state.twoFactor.setup_required
+  if (mustAct && location.pathname !== '/account') {
     return <Navigate to="/account" replace />
   }
 

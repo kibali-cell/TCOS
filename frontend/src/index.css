@@ -852,3 +852,66 @@ textarea {
     text-decoration: none;
   }
 }
+
+/* Slice 7: text-style buttons, two-factor set-up, file upload */
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--link, #1a56a0);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  min-height: 44px;
+}
+.qr-box {
+  display: inline-block;
+  background: #fff;
+  padding: 0.5rem;
+  border: 1px solid var(--border, #ccc);
+  border-radius: 6px;
+}
+.qr-box img {
+  display: block;
+  width: 200px;
+  height: 200px;
+}
+.recovery-codes {
+  columns: 2;
+  list-style: none;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+  border: 1px dashed var(--border, #999);
+  border-radius: 6px;
+  font-family: ui-monospace, monospace;
+}
+.dropzone {
+  border: 2px dashed var(--border, #999);
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+}
+.upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+.upload-row progress {
+  flex: 1 1 8rem;
+}
+.file-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+.file-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border, #ddd);
+}
