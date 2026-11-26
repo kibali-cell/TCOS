@@ -168,10 +168,47 @@ Permissions, the 11 roles and their default grants are created by a data migrati
 ### D-043 Test-only models
 Department, own and assigned scope tests use a small test-only app (`tests/rbac_testapp`, `tests/settings_test.py`) because no real record types exist until Phase Two. It is never installed in the real settings.
 
+## Slice 3: audit log
+
+### D-044 Sensitive role grants go through the Approval Centre (owner decision)
+Granting a sensitive role will need a second person's approval, handled by the Approval Centre. Decided by the owner ("Yes, use the Approval Centre"). It is built in Slice 5, when the Approval Centre exists. Until then role assignment stays direct, with the self-escalation guards from D-037, and every assignment is audited.
+
+### D-045 The audit log cannot be changed, in three layers
+1. The application: the model refuses to save over an existing row, delete, or use the bulk queryset methods; rows are only added through `audit.service.record`.
+2. The database: a trigger raises on UPDATE and DELETE (per row) and on TRUNCATE, for every role including the owner.
+3. The restricted database role the server runs as has only SELECT and INSERT on the audit table (D-048).
+
+### D-046 Tamper-evident hash chain is included (closes SCHEMA 9.5)
+Each event stores the hash of the one before it and its own hash over its content. `manage.py verify_audit_chain` and `audit.service.verify_chain()` detect an edited, removed or reordered event. A write lock serialises inserts so the chain has one order. Limit, stated plainly: someone with full database superuser access could rewrite the whole chain consistently. The defence is to keep the head hash (printed by the command) somewhere off the server, for example in the monthly report to the board.
+
+### D-047 The change and its audit event commit together
+Every audited action runs in one transaction with its audit event. If the event cannot be written, the change is rolled back. The system never records a change without its evidence, and never loses the evidence of a change.
+
+### D-048 The server runs as a restricted database role
+Migrations and `setup_database_roles` run as the owner. The running server uses `tcos_app`, which cannot update, delete or truncate the audit log, and cannot change `django_migrations`. This needs one new value in `.env`: `TCOS_APP_DB_PASSWORD`. Docker Compose handles the two connections; `docs/ADMIN_SETUP.md` explains it.
+
+### D-049 What is recorded, and what never is
+Recorded: sign-ins (success, failure, blocked), sign-outs, ended sessions, password changes, user creation, edits and (de)activation, role creation, edits and deletion, every permission change (added, removed, scope changed), role assignment and removal, and exports of the audit log. A sanitiser removes anything that looks secret (passwords, tokens, session keys, hashes, one-time codes) at any depth before it is stored. Models can exclude further fields with `AUDIT_EXCLUDE_FIELDS`, which is how child-sensitive fields will be kept out later.
+
+### D-050 Who can see the log, and export
+Only the Administrator and the Executive Director can view it (nobody else gets it by default). Nobody can export by default; an administrator must give `audit.EXPORT` to a role on purpose. Exports are CSV, limited to 50,000 rows (narrow the filters otherwise), recorded in the log before the data leaves, and cells that start with a spreadsheet formula character are neutralised. A person limited to "own" scope sees only events they performed; "department" scope sees that department's events.
+
+### D-051 Two honest limits in what is recorded
+An idle session that expires on its own is not audited (the server notices only on the next request). A failed sign-in records the username as typed, shortened to 150 characters; a mistyped password in the username box would therefore appear in the log. Both are small and are listed in STATUS.
+
+### D-052 Earlier sign-in history was carried over
+Existing login attempts were copied into the audit log once, marked `backfilled`, so the chain does not start empty.
+
+### D-053 Record grants only apply to models with UUID keys
+Record grants store a UUID, so a model with another kind of key (the audit table uses a number) cannot be the target of one. The engine skips record grants for such models instead of failing. Found by the first audit API test.
+
+### D-054 New user services wait for their screen
+`update_user` and `set_user_status` (with the protections: no self-deactivation, never the last working Administrator, sessions end when someone is deactivated) are built and audited now, with tests. Their screens arrive with user management in Slice 6.
+
 ## Pending owner decisions
 
-Still open in `docs/SCHEMA.md` section 9: approval hierarchy tables, single versus multi-step approvals, audit hash chain, requester-as-only-approver policy, data protection review and hosting region (firm, because the database is in the cloud). Scope semantics are now D-035; default grants are D-034 and need your review.
+Still open in `docs/SCHEMA.md` section 9: approval hierarchy tables, single versus multi-step approvals, requester-as-only-approver policy, data protection review and hosting region (firm, because the database is in the cloud). Scope semantics are now D-035; default grants are D-034 and need your review.
 
 Also: ratify the TZS tiers (D-020) before Slice 11, and confirm the builder's choices in D-022.
 
-Needed before: Slice 3 (hash chain), Slice 5 (approval chains, requester policy), Slice 11 (TZS ratification), and before deployment (hosting region, data protection review).
+Needed before: Slice 5 (approval chains, requester policy), Slice 11 (TZS ratification), and before deployment (hosting region, data protection review).

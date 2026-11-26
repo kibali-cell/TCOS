@@ -51,6 +51,13 @@ export function Layout() {
                 </NavLink>
               </li>
             )}
+            {can('audit', 'VIEW') && (
+              <li>
+                <NavLink to="/administration/audit" onClick={close}>
+                  Audit log
+                </NavLink>
+              </li>
+            )}
           </ul>
         </nav>
       </aside>

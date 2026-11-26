@@ -13,9 +13,9 @@
   font-family:
     system-ui,
     -apple-system,
-    "Segoe UI",
+    'Segoe UI',
     Roboto,
-    "Helvetica Neue",
+    'Helvetica Neue',
     Arial,
     sans-serif;
   line-height: 1.5;
@@ -516,4 +516,141 @@ a {
 .new-role {
   border-top: 1px solid var(--border);
   padding-top: 12px;
+}
+
+/* ---- Audit log (Slice 3) ---- */
+
+.audit-filters {
+  display: grid;
+  gap: 0 12px;
+  grid-template-columns: minmax(0, 1fr);
+  margin-bottom: 16px;
+}
+
+@media (min-width: 640px) {
+  .audit-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .audit-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.audit-actions {
+  grid-column: 1 / -1;
+}
+
+.field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid #8a96a3;
+  border-radius: 8px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+}
+
+.audit-table,
+.audit-table tbody,
+.audit-table tr,
+.audit-table td {
+  display: block;
+  width: 100%;
+}
+
+.audit-table thead {
+  display: none;
+}
+
+.audit-table tr {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.audit-table td {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.audit-table td[data-label]::before {
+  content: attr(data-label);
+  flex: none;
+  color: var(--muted);
+  text-align: left;
+}
+
+.audit-table .badge {
+  margin-left: 0;
+}
+
+.audit-changes {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  overflow-wrap: anywhere;
+}
+
+.audit-detail {
+  text-align: left;
+}
+
+@media (min-width: 900px) {
+  .audit-table {
+    display: table;
+    border-collapse: collapse;
+  }
+
+  .audit-table thead {
+    display: table-header-group;
+  }
+
+  .audit-table tbody {
+    display: table-row-group;
+  }
+
+  .audit-table tr {
+    display: table-row;
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+
+  .audit-table th,
+  .audit-table td {
+    display: table-cell;
+    width: auto;
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .audit-table td[data-label]::before {
+    content: none;
+  }
 }

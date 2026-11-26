@@ -28,7 +28,7 @@ import copy
 from dataclasses import dataclass, field
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Q, UUIDField
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import BasePermission
@@ -151,6 +151,11 @@ def _live_grants(user, action):
     )
 
 
+def _supports_record_grants(model) -> bool:
+    """Record grants store a UUID, so only models with a UUID primary key can be granted."""
+    return isinstance(model._meta.pk, UUIDField)
+
+
 def can(user, module: str, action: str, obj=None, *, access=None) -> bool:
     """May ``user`` perform ``action`` in ``module`` (on ``obj``, if given)?
 
@@ -170,7 +175,7 @@ def can(user, module: str, action: str, obj=None, *, access=None) -> bool:
         return bool(granted)
     if granted and _covers(granted, user, obj):
         return True
-    if getattr(obj, "pk", None) is None:
+    if getattr(obj, "pk", None) is None or not _supports_record_grants(type(obj)):
         return False
     content_type = ContentType.objects.get_for_model(type(obj))
     return _live_grants(user, action).filter(content_type=content_type, object_id=obj.pk).exists()
@@ -201,9 +206,12 @@ def filter_queryset(user, module: str, action: str, queryset, *, access=None):
             for name in getattr(model, "RBAC_ASSIGNED_FIELDS", ()):
                 conditions |= Q(**{name: user.pk})
 
-    content_type = ContentType.objects.get_for_model(model)
-    granted_ids = _live_grants(user, action).filter(content_type=content_type).values("object_id")
-    conditions |= Q(pk__in=granted_ids)
+    if _supports_record_grants(model):
+        content_type = ContentType.objects.get_for_model(model)
+        granted_ids = _live_grants(user, action).filter(content_type=content_type)
+        conditions |= Q(pk__in=granted_ids.values("object_id"))
+    if not conditions:
+        return queryset.none()
     return queryset.filter(conditions)
 
 

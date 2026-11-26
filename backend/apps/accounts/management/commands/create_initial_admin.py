@@ -19,6 +19,8 @@ from django.db import transaction
 
 from apps.accounts.models import User
 from apps.accounts.services import create_user
+from apps.audit import events as audit_events
+from apps.audit.service import record as audit
 from apps.rbac.constants import ADMINISTRATOR_ROLE
 from apps.rbac.models import Permission, Role, RolePermission, UserRole
 from apps.rbac.seed import seed
@@ -58,7 +60,14 @@ class Command(BaseCommand):
                     full_name=full_name,
                     password=password,
                 )
-                UserRole.objects.create(user=user, role=Role.objects.get(code=ADMINISTRATOR_ROLE))
+                role = Role.objects.get(code=ADMINISTRATOR_ROLE)
+                UserRole.objects.create(user=user, role=role)
+                audit(
+                    audit_events.ROLE_ASSIGNED,
+                    object_type="accounts.User",
+                    object_id=user.pk,
+                    metadata={"role": role.code, "via": "create_initial_admin command"},
+                )
         except ValidationError as exc:
             raise CommandError("Could not create the account: " + " ".join(exc.messages)) from exc
 

@@ -128,7 +128,7 @@ class SessionDetailView(APIView):
             raise ValidationError(
                 {"detail": ["This is the session you are using. Use sign out instead."]}
             )
-        services.end_session(user_session, UserSession.EndReason.SIGNED_OUT_BY_USER)
+        services.sign_out_device(request.user, user_session)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

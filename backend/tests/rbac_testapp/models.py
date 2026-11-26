@@ -9,6 +9,7 @@ from django.db import models
 class Record(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=100)
+    internal_note = models.CharField(max_length=200, blank=True)
     department = models.ForeignKey(
         "organisation.Department", null=True, blank=True, on_delete=models.PROTECT, related_name="+"
     )
@@ -23,6 +24,7 @@ class Record(models.Model):
         ordering = ["title"]
 
     RBAC_ASSIGNED_FIELDS = ("assigned_to_id",)
+    AUDIT_EXCLUDE_FIELDS = ("internal_note",)  # an opted-in model hides its own sensitive field
 
     def __str__(self):
         return self.title

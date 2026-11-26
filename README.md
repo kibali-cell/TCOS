@@ -18,7 +18,8 @@ Requires Docker with Compose.
 
 ```bash
 cp .env.example .env
-# edit .env: set POSTGRES_PASSWORD (generate one with: openssl rand -hex 24)
+# edit .env: set POSTGRES_PASSWORD and TCOS_APP_DB_PASSWORD
+# (generate each with: openssl rand -hex 24, using a different value for each)
 docker compose up --build
 ```
 
@@ -48,6 +49,8 @@ Each slice is delivered as an update to the **same** project folder, not a new p
 1. Stop the stack (`docker compose down`, without `-v`).
 2. Extract the new zip over your existing folder, replacing files. Keep your `.env`.
 3. `docker compose up --build`
+
+**Upgrading to Slice 3:** add this line to your existing `.env` before step 3 (the stack will refuse to start without it): `TCOS_APP_DB_PASSWORD=` followed by a new value from `openssl rand -hex 24`. See `docs/ADMIN_SETUP.md`.
 
 Your data lives in a Docker volume, outside the folder, and survives updates. Database migrations run automatically on start. Slice zips never contain `.env` or data.
 

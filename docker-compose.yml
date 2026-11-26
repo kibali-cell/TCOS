@@ -32,12 +32,20 @@ services:
       args:
         REQUIREMENTS: requirements-dev.txt
     restart: unless-stopped
+    # Two database identities (Slice 3). Migrations and the role setup run as the owner
+    # (DATABASE_URL). The running server then switches to the restricted role
+    # (APP_DATABASE_URL), which can only add to the audit log, never change or remove it.
+    # Commands you run yourself with "docker compose exec backend ..." use the owner.
     command: >
       sh -c "python manage.py migrate --noinput &&
-             python manage.py runserver 0.0.0.0:8000"
+             python manage.py setup_database_roles &&
+             DATABASE_URL=$$APP_DATABASE_URL python manage.py runserver 0.0.0.0:8000"
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.dev
       DATABASE_URL: postgres://${POSTGRES_USER:-tcos}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-tcos}
+      APP_DATABASE_URL: postgres://${TCOS_APP_DB_USER:-tcos_app}:${TCOS_APP_DB_PASSWORD:?Set TCOS_APP_DB_PASSWORD in .env}@db:5432/${POSTGRES_DB:-tcos}
+      TCOS_APP_DB_USER: ${TCOS_APP_DB_USER:-tcos_app}
+      TCOS_APP_DB_PASSWORD: ${TCOS_APP_DB_PASSWORD:?Set TCOS_APP_DB_PASSWORD in .env}
     volumes:
       - ./backend:/app
     ports:

@@ -287,7 +287,7 @@ DRAFT→SUBMITTED; SUBMITTED→UNDER_REVIEW; UNDER_REVIEW→APPROVED|REJECTED; D
 
 ## 7. audit
 
-### `audit_event` (append-only)
+### `audit_event` (append-only) — built in Slice 3 as table `audit_auditevent`
 
 | Column | Type | Notes |
 |---|---|---|
@@ -305,7 +305,7 @@ DRAFT→SUBMITTED; SUBMITTED→UNDER_REVIEW; UNDER_REVIEW→APPROVED|REJECTED; D
 | ip_address | inet | |
 | user_agent | text | |
 | request_id | text | correlates entries from one request |
-| prev_hash / event_hash | text, nullable | optional tamper-evident chain (open decision 9.5) |
+| prev_hash / event_hash | text | tamper-evident chain: sha256 over the event's fields and the previous hash; the first event follows 64 zeros (decided, D-046) |
 
 Indexes: (occurred_at), (actor_id, occurred_at), (event_type, occurred_at), (object_type, object_id), (department_id, occurred_at).
 
@@ -314,7 +314,7 @@ Indexes: (occurred_at), (actor_id, occurred_at), (event_type, occurred_at), (obj
 2. Trigger `BEFORE UPDATE OR DELETE OR TRUNCATE` raises an exception.
 3. The application connects as a database role with `INSERT, SELECT` only on this table; migrations run as a separate owner role.
 
-Because a table owner or database superuser can still bypass this, the optional hash chain plus off-site backups provide detection of tampering at that level.
+As built: the app model refuses changes; trigger `audit_event_no_row_change` (UPDATE, DELETE) and `audit_event_no_truncate` (TRUNCATE) raise for every role; role `tcos_app` has SELECT and INSERT only. Inserts take an advisory lock so the chain has one order. A table owner or database superuser can still bypass the triggers, so the hash chain (`verify_audit_chain`) and an off-site copy of the head hash provide detection at that level.
 
 ## 8. core
 
@@ -439,7 +439,7 @@ id, occurred_at, user_id, device_id, direction (`PULL`, `PUSH`), applied_count, 
 2. **Scope semantics:** is `DEPARTMENT` scope enough for sensitive modules (e.g. should the Medical Officer see only medical records regardless of department)? Likely handled by module permissions, but confirm.
 3. **Approval hierarchy tables:** keep `approval_hierarchy` (department chains) and `approval_workflow_step` separate, or merge into one? Draft keeps both for clarity; merging reduces complexity.
 4. **Single-step or multi-step approvals in Phase One?** Draft supports multi-step. Single-step would be faster to build and test.
-5. **Audit hash chain:** include tamper-evident hashing now (more work, stronger evidence for auditors and donors), or rely on DB permissions and off-site backups?
+5. ~~**Audit hash chain:**~~ **Decided: included (D-046).** Was: include tamper-evident hashing now (more work, stronger evidence for auditors and donors), or rely on DB permissions and off-site backups?
 6. **Requester is the only possible approver** (e.g. Executive Director requesting something with no superior): escalate to Board Member role, or block and require an administrator to reassign? Needs a policy.
 7. **Default permission grants per role:** I will propose a matrix in Slice 2 for you to correct. Do you already have a view on who may approve what (e.g. spending limits)?
 8. ~~**Language**~~ **Decided: English only.** No translation framework is needed.

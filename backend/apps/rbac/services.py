@@ -22,6 +22,9 @@ from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from apps.audit import events as audit_events
+from apps.audit.service import record as audit
+
 from .constants import ACTIONS, ADMINISTRATOR_ROLE, ALL, SCOPES
 from .models import Permission, Role, RolePermission, UserRole
 
@@ -35,6 +38,14 @@ def _forbid(message: str, code: str):
 def holds_role(user, role: Role) -> bool:
     """True if the user has a live (not revoked) assignment of the role."""
     return UserRole.objects.filter(user=user, role=role, revoked_at__isnull=True).exists()
+
+
+def _cell(module: str, action: str, scope: str) -> str:
+    return f"{module}.{action}={scope}"
+
+
+def _role_fields(role: Role) -> dict:
+    return {"name": role.name, "description": role.description, "is_active": role.is_active}
 
 
 # --- Roles ---------------------------------------------------------------------------
@@ -94,6 +105,17 @@ def create_role(actor, *, name: str, description: str = "", grants=()) -> Role:
         created_by=actor,
     )
     _write_grants(role, cleaned, actor)
+    audit(
+        audit_events.ROLE_CREATED,
+        actor=actor,
+        object_type="rbac.Role",
+        object_id=role.pk,
+        changes={
+            **{k: {"from": None, "to": v} for k, v in _role_fields(role).items()},
+            "grants": {"from": [], "to": sorted(_cell(m, a, sc) for (m, a), sc in cleaned.items())},
+        },
+        metadata={"code": role.code},
+    )
     return role
 
 
@@ -101,6 +123,7 @@ def create_role(actor, *, name: str, description: str = "", grants=()) -> Role:
 def update_role(actor, role: Role, *, name=None, description=None, is_active=None) -> Role:
     if holds_role(actor, role):
         _forbid("You cannot change a role that you hold yourself.", "self_escalation")
+    before = _role_fields(role)
     if name is not None:
         name = name.strip()
         if not name:
@@ -115,6 +138,17 @@ def update_role(actor, role: Role, *, name=None, description=None, is_active=Non
             raise ValidationError({"is_active": ["The Administrator role cannot be deactivated."]})
         role.is_active = is_active
     role.save()
+    after = _role_fields(role)
+    changes = {k: {"from": before[k], "to": after[k]} for k in after if before[k] != after[k]}
+    if changes:
+        audit(
+            audit_events.ROLE_UPDATED,
+            actor=actor,
+            object_type="rbac.Role",
+            object_id=role.pk,
+            changes=changes,
+            metadata={"code": role.code},
+        )
     return role
 
 
@@ -128,6 +162,14 @@ def delete_role(actor, role: Role) -> None:
         raise ValidationError(
             {"detail": ["This role has been assigned to people. Deactivate it instead."]}
         )
+    audit(
+        audit_events.ROLE_DELETED,
+        actor=actor,
+        object_type="rbac.Role",
+        object_id=role.pk,
+        changes={k: {"from": v, "to": None} for k, v in _role_fields(role).items()},
+        metadata={"code": role.code},
+    )
     role.delete()
 
 
@@ -159,15 +201,38 @@ def set_role_grants(actor, role: Role, grants) -> Role:
         _forbid("You cannot change the permissions of a role you hold yourself.", "self_escalation")
     cleaned = _clean_grants(grants)
     _protect_administrator_grants(role, cleaned)
+    old = {
+        (g.permission.module, g.permission.action): g.scope
+        for g in role.grants.select_related("permission")
+    }
     _write_grants(role, cleaned, actor)
     role.save()  # bumps updated_at
+    added = sorted(_cell(m, a, sc) for (m, a), sc in cleaned.items() if (m, a) not in old)
+    removed = sorted(_cell(m, a, sc) for (m, a), sc in old.items() if (m, a) not in cleaned)
+    changed = sorted(
+        f"{m}.{a}: {old[(m, a)]} -> {sc}"
+        for (m, a), sc in cleaned.items()
+        if old.get((m, a)) not in (None, sc)
+    )
+    if added or removed or changed:
+        audit(
+            audit_events.PERMISSION_CHANGED,
+            actor=actor,
+            object_type="rbac.Role",
+            object_id=role.pk,
+            changes={"added": added, "removed": removed, "scope_changed": changed},
+            metadata={
+                "code": role.code,
+                "holders": role.user_roles.filter(revoked_at__isnull=True).count(),
+            },
+        )
     return role
 
 
 # --- Assignments ---------------------------------------------------------------------
 
 
-def _working_administrators(exclude_assignment=None):
+def working_administrators(exclude_assignment=None):
     """User ids that can currently administer: active account, live unrestricted assignment."""
     today = timezone.localdate()
     queryset = (
@@ -209,7 +274,7 @@ def assign_role(
     )
     if duplicate.exists():
         raise ValidationError({"role": ["This person already holds this role there."]})
-    return UserRole.objects.create(
+    assignment = UserRole.objects.create(
         user=user,
         role=role,
         department=department,
@@ -217,6 +282,21 @@ def assign_role(
         valid_to=valid_to,
         granted_by=actor,
     )
+    audit(
+        audit_events.ROLE_ASSIGNED,
+        actor=actor,
+        object_type="accounts.User",
+        object_id=user.pk,
+        department_id=department.pk if department else None,
+        metadata={
+            "role": role.code,
+            "department": department.name if department else None,
+            "valid_from": valid_from,
+            "valid_to": valid_to,
+            "assignment_id": assignment.pk,
+        },
+    )
+    return assignment
 
 
 @transaction.atomic
@@ -226,11 +306,19 @@ def revoke_user_role(actor, assignment: UserRole) -> UserRole:
     if assignment.revoked_at is not None:
         raise ValidationError({"detail": ["This assignment has already been removed."]})
     if assignment.role.code == ADMINISTRATOR_ROLE:
-        if not _working_administrators(exclude_assignment=assignment):
+        if not working_administrators(exclude_assignment=assignment):
             raise ValidationError(
                 {"detail": ["This is the last working Administrator and cannot be removed."]}
             )
     assignment.revoked_at = timezone.now()
     assignment.revoked_by = actor
     assignment.save(update_fields=["revoked_at", "revoked_by"])
+    audit(
+        audit_events.ROLE_REVOKED,
+        actor=actor,
+        object_type="accounts.User",
+        object_id=assignment.user_id,
+        department_id=assignment.department_id,
+        metadata={"role": assignment.role.code, "assignment_id": assignment.pk},
+    )
     return assignment

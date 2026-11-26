@@ -24,8 +24,11 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.exceptions import ValidationError as ApiValidationError
+
+from apps.audit import events as audit_events
+from apps.audit.service import record as audit
 
 from .models import LoginAttempt, User, UserSession, normalise_email, normalise_username
 
@@ -101,6 +104,13 @@ def describe_device(user_agent: str) -> str:
 
 # --- Account creation ------------------------------------------------------
 
+PROFILE_FIELDS = ("username", "email", "full_name", "phone", "status", "department_id")
+
+
+def _profile(user: User) -> dict:
+    """The user fields worth recording. Never includes the password or its hash."""
+    return {name: getattr(user, name) for name in PROFILE_FIELDS}
+
 
 def create_user(
     *,
@@ -134,7 +144,17 @@ def create_user(
     password_validation.validate_password(password, user)
     user.set_password(password)
     user.password_changed_at = timezone.now()
-    user.save()
+    with transaction.atomic():
+        user.save()
+        audit(
+            audit_events.USER_CREATED,
+            actor=created_by,
+            object_type="accounts.User",
+            object_id=user.pk,
+            department_id=user.department_id,
+            changes={name: {"from": None, "to": value} for name, value in _profile(user).items()},
+            metadata={"created_by_system": created_by is None},
+        )
     return user
 
 
@@ -142,14 +162,31 @@ def create_user(
 
 
 def _record_attempt(request, username, user, success, reason=""):
-    LoginAttempt.objects.create(
-        username_attempted=username,
-        user=user,
-        success=success,
-        failure_reason=reason,
-        ip_address=get_client_ip(request),
-        user_agent=(request.META.get("HTTP_USER_AGENT", "") or "")[:400],
-    )
+    """Record the attempt for throttling and write the matching audit event, together."""
+    if success:
+        event_type = audit_events.LOGIN_SUCCESS
+    elif reason == THROTTLED:
+        event_type = audit_events.LOGIN_BLOCKED
+    else:
+        event_type = audit_events.LOGIN_FAILED
+    with transaction.atomic():
+        LoginAttempt.objects.create(
+            username_attempted=username,
+            user=user,
+            success=success,
+            failure_reason=reason,
+            ip_address=get_client_ip(request),
+            user_agent=(request.META.get("HTTP_USER_AGENT", "") or "")[:400],
+        )
+        audit(
+            event_type,
+            actor=user if success else None,
+            actor_username=username,
+            object_type="accounts.User" if user else "",
+            object_id=user.pk if user else "",
+            success=success,
+            metadata={"reason": reason} if reason else {},
+        )
 
 
 def is_blocked(username: str, user: User | None, ip: str | None) -> bool:
@@ -202,8 +239,9 @@ def sign_in(request, username: str, password: str) -> User:
         _record_attempt(request, name, user, False, reason)
         raise InvalidCredentials()
 
-    _record_attempt(request, name, authenticated, True)
-    _start_session(request, authenticated)
+    with transaction.atomic():
+        _record_attempt(request, name, authenticated, True)
+        _start_session(request, authenticated)
     return authenticated
 
 
@@ -252,26 +290,79 @@ def end_session(user_session: UserSession, reason: str) -> None:
 
 def end_current_session(request, reason: str) -> None:
     """End the request's own session and clear the cookie."""
+    user = request.user if getattr(request.user, "is_authenticated", False) else None
     key = request.session.session_key
-    if key:
-        _mark_ended(UserSession.objects.filter(session_key=key, ended_at__isnull=True), reason)
+    with transaction.atomic():
+        if key:
+            _mark_ended(UserSession.objects.filter(session_key=key, ended_at__isnull=True), reason)
+        if user is not None:
+            event = (
+                audit_events.LOGOUT
+                if reason == UserSession.EndReason.LOGOUT
+                else audit_events.SESSION_ENDED
+            )
+            audit(
+                event,
+                actor=user,
+                object_type="accounts.User",
+                object_id=user.pk,
+                metadata={"reason": reason},
+            )
     logout(request)
 
 
-def end_other_sessions(user: User, keep_key: str | None, reason: str) -> int:
-    """End every active session of ``user`` except ``keep_key``. Returns the count."""
+def sign_out_device(user: User, user_session: UserSession) -> None:
+    """The user ends one of their own other sessions."""
+    with transaction.atomic():
+        end_session(user_session, UserSession.EndReason.SIGNED_OUT_BY_USER)
+        audit(
+            audit_events.SESSION_ENDED,
+            actor=user,
+            object_type="accounts.UserSession",
+            object_id=user_session.pk,
+            metadata={
+                "reason": UserSession.EndReason.SIGNED_OUT_BY_USER,
+                "device": user_session.device_label,
+            },
+        )
+
+
+def end_other_sessions(
+    user: User,
+    keep_key: str | None,
+    reason: str,
+    *,
+    actor: User | None = None,
+    audited: bool = True,
+) -> int:
+    """End every active session of ``user`` except ``keep_key``. Returns the count.
+
+    One audit event is written for the whole operation (not one per session), unless the
+    caller records its own event (``audited=False``).
+    """
     sessions = UserSession.objects.filter(user=user, ended_at__isnull=True)
     if keep_key:
         sessions = sessions.exclude(session_key=keep_key)
-    count = 0
-    for user_session in sessions:
-        end_session(user_session, reason)
-        count += 1
+    with transaction.atomic():
+        count = 0
+        for user_session in sessions:
+            end_session(user_session, reason)
+            count += 1
+        if audited and count:
+            audit(
+                audit_events.SESSIONS_ENDED,
+                actor=actor or user,
+                object_type="accounts.User",
+                object_id=user.pk,
+                metadata={"reason": reason, "count": count},
+            )
     return count
 
 
-def end_all_sessions(user: User, reason: str) -> int:
-    return end_other_sessions(user, None, reason)
+def end_all_sessions(
+    user: User, reason: str, *, actor: User | None = None, audited: bool = True
+) -> int:
+    return end_other_sessions(user, None, reason, actor=actor, audited=audited)
 
 
 def list_active_sessions(user: User) -> list[UserSession]:
@@ -336,4 +427,91 @@ def change_password(request, user: User, current_password: str, new_password: st
     if old_key and new_key and old_key != new_key:
         UserSession.objects.filter(session_key=old_key).update(session_key=new_key)
 
-    return end_other_sessions(user, new_key, UserSession.EndReason.PASSWORD_CHANGED)
+    ended = end_other_sessions(user, new_key, UserSession.EndReason.PASSWORD_CHANGED, audited=False)
+    audit(
+        audit_events.PASSWORD_CHANGED,
+        actor=user,
+        object_type="accounts.User",
+        object_id=user.pk,
+        metadata={"ended_other_sessions": ended},
+    )
+    return ended
+
+
+# --- Account changes ---------------------------------------------------------
+
+
+@transaction.atomic
+def update_user(actor: User, user: User, **fields) -> User:
+    """Change profile fields (full_name, email, phone, department). Audited with a diff."""
+    allowed = {"full_name", "email", "phone", "department"}
+    unknown = set(fields) - allowed
+    if unknown:
+        raise ApiValidationError({"detail": [f"Cannot change: {', '.join(sorted(unknown))}."]})
+    before = _profile(user)
+    for name, value in fields.items():
+        setattr(user, name, value)
+    user.email = normalise_email(user.email)
+    user.full_name = (user.full_name or "").strip()
+    user.phone = (user.phone or "").strip()
+    try:
+        user.full_clean(exclude=["password"])
+    except DjangoValidationError as exc:
+        raise ApiValidationError(exc.message_dict) from exc
+    user.save()
+    after = _profile(user)
+    changes = {
+        name: {"from": before[name], "to": after[name]}
+        for name in after
+        if before[name] != after[name]
+    }
+    if changes:
+        audit(
+            audit_events.USER_UPDATED,
+            actor=actor,
+            object_type="accounts.User",
+            object_id=user.pk,
+            department_id=user.department_id,
+            changes=changes,
+        )
+    return user
+
+
+@transaction.atomic
+def set_user_status(actor: User, user: User, new_status: str, reason: str = "") -> User:
+    """Activate or deactivate an account. Leaving ACTIVE ends all of the person's sessions."""
+    if new_status not in User.Status.values:
+        raise ApiValidationError({"status": ["Unknown status."]})
+    if user.pk == actor.pk:
+        raise PermissionDenied("You cannot change your own account status.", "self_deactivation")
+    old_status = user.status
+    if old_status == new_status:
+        return user
+    if old_status == User.Status.ACTIVE:
+        from apps.rbac.services import working_administrators  # late import: avoid a cycle
+
+        admins = working_administrators()
+        if user.pk in admins and admins == {user.pk}:
+            raise ApiValidationError(
+                {"detail": ["This is the last working Administrator and cannot be deactivated."]}
+            )
+    user.status = new_status
+    user.save(update_fields=["status", "updated_at"])
+    if old_status != User.Status.ACTIVE and new_status == User.Status.ACTIVE:
+        event = audit_events.USER_ACTIVATED
+    elif old_status == User.Status.ACTIVE:
+        event = audit_events.USER_DEACTIVATED
+    else:
+        event = audit_events.USER_UPDATED
+    audit(
+        event,
+        actor=actor,
+        object_type="accounts.User",
+        object_id=user.pk,
+        department_id=user.department_id,
+        changes={"status": {"from": old_status, "to": new_status}},
+        metadata={"reason": (reason or "")[:300]},
+    )
+    if new_status != User.Status.ACTIVE:
+        end_all_sessions(user, UserSession.EndReason.USER_DEACTIVATED, actor=actor)
+    return user

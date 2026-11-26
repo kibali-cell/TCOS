@@ -1,0 +1,40 @@
+"""Audit event types. Add new ones here so the viewer's filter can list them."""
+
+# Sign-in and sessions
+LOGIN_SUCCESS = "LOGIN_SUCCESS"
+LOGIN_FAILED = "LOGIN_FAILED"
+LOGIN_BLOCKED = "LOGIN_BLOCKED"  # refused because of too many failures
+LOGOUT = "LOGOUT"
+SESSION_ENDED = "SESSION_ENDED"  # one other device signed out
+SESSIONS_ENDED = "SESSIONS_ENDED"  # "sign out all other devices"
+PASSWORD_CHANGED = "PASSWORD_CHANGED"  # noqa: S105 (an event name, not a password)
+
+# Users
+USER_CREATED = "USER_CREATED"
+USER_UPDATED = "USER_UPDATED"
+USER_ACTIVATED = "USER_ACTIVATED"
+USER_DEACTIVATED = "USER_DEACTIVATED"
+
+# Roles and permissions
+ROLE_CREATED = "ROLE_CREATED"
+ROLE_UPDATED = "ROLE_UPDATED"
+ROLE_DELETED = "ROLE_DELETED"
+PERMISSION_CHANGED = "PERMISSION_CHANGED"
+ROLE_ASSIGNED = "ROLE_ASSIGNED"
+ROLE_REVOKED = "ROLE_REVOKED"
+
+# Generic record events (any model that opts in)
+RECORD_CREATED = "RECORD_CREATED"
+RECORD_UPDATED = "RECORD_UPDATED"
+RECORD_ARCHIVED = "RECORD_ARCHIVED"
+RECORD_DELETED = "RECORD_DELETED"
+
+# Later slices
+APPROVAL_DECISION = "APPROVAL_DECISION"
+DATA_EXPORTED = "DATA_EXPORTED"
+DOCUMENT_UPLOADED = "DOCUMENT_UPLOADED"
+DOCUMENT_DOWNLOADED = "DOCUMENT_DOWNLOADED"
+
+EVENT_TYPES = tuple(
+    value for name, value in sorted(globals().items()) if name.isupper() and isinstance(value, str)
+)

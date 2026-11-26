@@ -126,3 +126,44 @@ export async function api<T = unknown>(path: string, options: RequestOptions = {
 
   return payload as T
 }
+
+/** POST a JSON body and receive a file (for example a CSV export). */
+export async function apiDownload(
+  path: string,
+  body: unknown,
+): Promise<{ blob: Blob; filename: string }> {
+  let response: Response
+  try {
+    response = await fetch(`${API_PREFIX}${path}`, {
+      method: 'POST',
+      headers: {
+        Accept: 'text/csv, application/json',
+        'Content-Type': 'application/json',
+        [CSRF_HEADER]: await ensureCsrfCookie(),
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(body),
+    })
+  } catch {
+    throw new ApiError(0, 'network_error', 'Could not reach the server.')
+  }
+  if (!response.ok) {
+    if (response.status === 401) unauthorizedHandler?.()
+    let payload: { error?: Record<string, unknown> } | null = null
+    try {
+      payload = await response.json()
+    } catch {
+      payload = null
+    }
+    const envelope = payload?.error
+    throw new ApiError(
+      response.status,
+      typeof envelope?.code === 'string' ? envelope.code : 'error',
+      typeof envelope?.message === 'string' ? envelope.message : 'The request failed.',
+      envelope?.details ?? null,
+    )
+  }
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const match = /filename="?([^";]+)"?/.exec(disposition)
+  return { blob: await response.blob(), filename: match?.[1] ?? 'audit-log.csv' }
+}

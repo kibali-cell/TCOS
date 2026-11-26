@@ -205,3 +205,69 @@ One step (administrator assigns a role to himself) returned 404 because my scrip
 | Department creation from a screen | Slice 4. Department scope tested through a test-only model |
 | Audit events for role and permission changes | Slice 3 |
 | Whether the default grants fit Tuleeni | Needs the owner's review (D-034) |
+
+## Slice 3: audit log
+
+**Environment:** as Slice 2 (Linux, Python 3.13, Node 22, PostgreSQL 16 throwaway cluster, system Chrome). No Docker daemon.
+
+### Summary
+
+| Check | Command | Result |
+|---|---|---|
+| Whole pipeline | `make check` | Passed (exit 0) |
+| Backend lint, format | `ruff check .`, `ruff format --check .` | Passed |
+| Frontend lint, types | `npm run lint`, `npm run typecheck` | Passed |
+| Pending migrations | `makemigrations --check --dry-run` | No changes detected |
+| Migrate an empty database | `manage.py migrate` | Passed; empty chain verifies |
+| Migrate the existing development database | `manage.py migrate` | Passed; 11 earlier login attempts carried over, chain intact |
+| Backend tests | `pytest` | **380 passed** (was 252) |
+| Frontend unit tests | `npm test` | **65 passed**, 7 files (was 54) |
+| Browser tests | `npx playwright test` | **30 passed** (was 21) |
+| Production build | `npm run build` | Succeeded |
+
+### Backend tests by area (128 new)
+
+| File | Tests | Covers |
+|---|---|---|
+| `test_audit_core.py` | 42 | Hash chain links and verifies; an edited, deleted or reordered row is detected (with the trigger disabled for the test); the model refuses save-over, delete and bulk methods; **the database refuses UPDATE, DELETE and TRUNCATE as owner and as the restricted role**; the restricted role cannot change `django_migrations`; **the change rolls back if the audit write fails** (create user, create role, set permissions, deactivate, sign in); sanitiser removes secrets at any depth; generic create, update, archive, delete hooks honour excluded fields; backfill of earlier login attempts |
+| `test_audit_events.py` | 33 | Exactly one event per action; request id, address and device recorded; sign-in success, failure and block; sign-out and ended sessions; password change (one event, count of ended sessions); user create, edit, no-op writes nothing, deactivate and reactivate; self-deactivation and last-Administrator refused; role create, edit, delete; permission added, removed, rescoped; assign and revoke; **no password, token or hash in any event**; chain valid after a whole workflow; events outlive deleted actors |
+| `test_audit_api.py` | 53 | **Each of the 11 roles**: only Administrator and Executive Director may view, nobody may export by default; anonymous 401; refusals reveal nothing; forced password change blocks viewing; no way to create, change or delete events through the API; newest first and paged; summary versus detail; every filter (text, actor, type list, outcome, object, request id, date range inclusive); **day boundaries follow Dar es Salaam time, not UTC**; bad dates and outcome give 400; own and department scope (other records are 404); export needs the export permission, is itself audited once, honours export scope, neutralises spreadsheet formulas, refuses over the limit without recording, ignores unknown filters |
+
+### Frontend tests (11 new)
+
+List with readable event names; refusal for people without audit access and no API request made; only filled-in filters are sent; details show old and new values; paging; empty and error states with the server's reason; export button only with permission, sends the security token, says the export was recorded; too-large export shows the server's reason; helper functions.
+
+**Browser (9 new, 3 tests x 3 widths):** the log is readable at 360, 768 and 1280 px (table on desktop, one card per event on phones), details open, no sideways scrolling, buttons large enough to tap; navigation link and Export button follow permissions; no access shows no log.
+
+### Live check with real processes (no mocks)
+
+Migrations and `setup_database_roles` as the database owner, then the Django server started as the restricted role `tcos_app`:
+
+| Step | Result |
+|---|---|
+| Health check | 200, database ok |
+| Sign in as an Administrator | 200 |
+| Create a role | 201 |
+| Audit list filtered to role creation | 1 event, by that user |
+| Export as Administrator (no export permission by default) | 403 |
+| `UPDATE`, `DELETE`, `TRUNCATE` on the audit table as `tcos_app` | All refused: permission denied |
+| `UPDATE` on `django_migrations` as `tcos_app` | Refused |
+| Ordinary read as `tcos_app` | Works |
+| `verify_audit_chain` | Intact, 14 events |
+| Server log | No traceback, no password |
+
+### Problems found and fixed during the slice
+
+1. The first audit API test crashed: the permission engine looked up record grants (which hold a UUID) against the audit table's numeric key. The engine now skips record grants for models without a UUID key (D-053). This was a genuine bug that would have hit any numeric-key model.
+2. A test expected 405 for writes on the log, but the permission check answers 403 first. Both refuse the request; the test now accepts either and checks nothing was written.
+3. Lint and test housekeeping (long lines, a stale test database needing `--create-db`, a test-app migration for an excluded field).
+
+### Not run, and why
+
+| Item | Reason |
+|---|---|
+| Docker with the restricted database role | No Docker daemon here. The same steps were run by hand against PostgreSQL 16; please try the update steps and add `TCOS_APP_DB_PASSWORD` to `.env` first |
+| Real iPhone, Android, Mac, Edge | Only Chrome on Linux |
+| Audit of idle-session expiry | Not built (D-051) |
+| Export of more than 50,000 events | Refused by design; narrow the filters |
+

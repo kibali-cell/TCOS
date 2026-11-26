@@ -66,13 +66,34 @@ Last updated: Slice 2 built and tested (awaiting review). Hybrid and offline des
 | **Creating departments** | **Not done** | Slice 4. Department scope is tested with a test-only model |
 | Default grants reflect how Tuleeni really works | **Needs your review** | They are my proposal (D-034) |
 | Record grants from a screen | Not done | Engine and model are tested; no API or screen yet because no record types exist until Phase Two |
-| Audit events for role and permission changes | Not done (Slice 3) | Changes are visible in the tables (`granted_by`, `revoked_by`) but not yet in an audit log |
+| Audit events for role and permission changes | Done in Slice 3 | See the Slice 3 table |
 | Real devices (iPhone, Android, Mac, Edge) | Not tested | Chrome on Linux only |
 | Docker with Slice 2 | Not tested | No Docker here. The migration runs on start; please try the update steps |
 
+## Slice 3: Audit log
+
+| Item | Status | Notes |
+|---|---|---|
+| Append-only audit table with tamper-evident hash chain | Done and tested | App layer, database trigger and restricted role (D-045, D-046, D-048). Tamper detection tested |
+| Change and audit event commit together | Done and tested | If the event cannot be written, the change rolls back |
+| Sign-ins, failures, blocks, sign-outs, ended sessions, password changes | Done and tested | One event per action |
+| User creation, edit, activation, deactivation | Done and tested (services only) | Screens come with Slice 6 |
+| Role create, edit, delete, permission changes, assign, revoke | Done and tested | Permission changes list what was added, removed or rescoped |
+| Secrets never stored | Done and tested | Sanitiser at any depth; checked across a whole workflow and live |
+| Request id, IP address, device on each event | Done and tested | Response carries `X-Request-ID` |
+| Viewer API: list, filters, detail, event types | Done and tested | All 11 roles tested; only Administrator and Executive Director can view |
+| CSV export | Done and tested | Needs `audit.EXPORT` (nobody has it yet), is itself audited, 50,000 row limit, formula-safe |
+| Audit log screen | Done and tested | Filters, details with what changed, paging, cards on phones; checked at 360, 768, 1280 px |
+| Earlier login history carried over | Done and tested | Marked `backfilled` |
+| Restricted database role in Docker | **Done but untested in Docker** | Verified live against PostgreSQL 16 outside Docker (migrate as owner, serve as `tcos_app`, tamper attempts refused). Needs `TCOS_APP_DB_PASSWORD` in `.env` |
+| Idle-session expiry audited | Not done | See D-051 |
+| Failed sign-in stores the username as typed | Known limitation | See D-051 |
+| Audit events for departments, approvals, documents, devices | Not started | Those features arrive in Slices 4 to 9; each will write events through the same service |
+| Real devices (iPhone, Android, Mac, Edge) | Not tested | Chrome on Linux only |
+
 ## Known limitations
 
-- Audit, approvals and user management do not exist yet. Roles and permissions exist, but no real record types exist yet, so the permissions currently decide only what you see in the navigation and who may manage roles.
+- Approvals and user management screens do not exist yet. Roles and permissions exist, but no real record types exist yet, so the permissions currently decide only what you see in the navigation and who may manage roles.
 - Sessions: an idle session expires on the server after 30 minutes but the page only notices on its next request.
 - No institutional figures (85 / 42 / 43 / 15 or otherwise) are shown anywhere. The reference-figure mechanism arrives in Slice 6.
 - Unknown API URLs return Django's default HTML 404 rather than the JSON error envelope.
@@ -84,9 +105,8 @@ Last updated: Slice 2 built and tested (awaiting review). Hybrid and offline des
 |---|---|
 | 0 Project setup | Done and reviewed (Docker run confirmed by owner) |
 | 1 Custom user, authentication, shell | Done and reviewed |
-| 2 Roles, permissions, scoped access | **Done, awaiting review** |
-| 2 Roles, permissions, scoped access | Not started |
-| 3 Audit log | Not started |
+| 2 Roles, permissions, scoped access | Done and reviewed |
+| 3 Audit log | **Done, awaiting review** |
 | 4 Organisation structure | Not started |
 | 5 Approval Centre | Not started |
 | 6 Dashboard, user management, responsive polish | Not started |
